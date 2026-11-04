@@ -15,6 +15,7 @@ public final class VoxyClientInit implements ClientModInitializer {
             Lsl.LOGGER.warn("[LSL/Voxy] {}: Voxy hooks are off", VoxyGate.reason());
             return;
         }
+        CtmAverageCache.register();
         String version = FabricLoader.getInstance().getModContainer("lsl")
             .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("?");
         Lsl.LOGGER.info("[LSL/Voxy] LSL {} on Voxy {} - layer mip: {}, shape culling: {}, hide grass blades: {}, full mipmaps: {}, split large faces: {}, connected textures: {}, match tints: {} (height {}), flat layers: {}, plant offsets: {}{}, plant grounding: {},"

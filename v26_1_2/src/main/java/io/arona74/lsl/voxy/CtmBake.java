@@ -73,7 +73,9 @@ public final class CtmBake {
             ChunkSectionLayer layer = firstLayer(plain);
             Material.Baked particle = model.particleMaterial();
             TextureAtlasSprite sprite = particle.sprite();
-            MutableMesh mesh = emit(model, state, BlockPos.ZERO);
+            // A piece bake (AVERAGE mode) draws its own piece; the periods are cached by then.
+            BlockPos piece = PIECE.get();
+            MutableMesh mesh = emit(model, state, piece != null ? piece : BlockPos.ZERO);
             Map<Direction, List<BakedQuad>> culled = new EnumMap<>(Direction.class);
             List<BakedQuad> unculled = new ArrayList<>();
             int[] periods = PlantLook.isPlant(state) ? null : periods(model, state, mesh);
@@ -90,14 +92,9 @@ public final class CtmBake {
                     return;
                 }
                 if (mode == LslConfig.CtmRepeat.AVERAGE) {
-                    // One piece per bake; the bakery hook bakes every piece and averages them.
-                    BlockPos piece = PIECE.get();
-                    if (piece == null) {
-                        AVERAGE_REQUEST.set(periods);
-                        piece = BlockPos.ZERO;
-                    }
-                    add(piece.equals(BlockPos.ZERO) ? mesh : emit(model, state, piece), sprite, layer,
-                        null, 0, 0, 0, 1, 1, 1, culled, unculled);
+                    // One piece per bake; the bakery hook bakes the other pieces and averages them.
+                    if (piece == null) AVERAGE_REQUEST.set(new AverageRequest(periods, sprite));
+                    add(mesh, sprite, layer, null, 0, 0, 0, 1, 1, 1, culled, unculled);
                 } else {
                     // A whole repeat cycle tiles with itself: the full pattern shrunk into each face.
                     tile(model, state, sprite, layer, Direction.Axis.Z, px, py, 1, culled, unculled);
@@ -127,13 +124,16 @@ public final class CtmBake {
 
     /** Piece of the repeat cycle to bake (AVERAGE mode, set by the bakery hook), null = normal bake. */
     static final ThreadLocal<BlockPos> PIECE = new ThreadLocal<>();
-    /** Set by a normal bake of a repeat block in AVERAGE mode: the cycle's periods. */
-    static final ThreadLocal<int[]> AVERAGE_REQUEST = new ThreadLocal<>();
+    /** Set by a normal bake of a repeat block in AVERAGE mode. */
+    static final ThreadLocal<AverageRequest> AVERAGE_REQUEST = new ThreadLocal<>();
+
+    /** A repeat block to average: its cycle's periods, and its particle sprite (new on every resource reload). */
+    public record AverageRequest(int[] periods, TextureAtlasSprite sprite) {}
 
     /** The pending AVERAGE request of the bake that just finished (never inside a piece bake). */
-    public static int[] takeAverageRequest() {
+    public static AverageRequest takeAverageRequest() {
         if (PIECE.get() != null) return null;
-        int[] r = AVERAGE_REQUEST.get();
+        AverageRequest r = AVERAGE_REQUEST.get();
         AVERAGE_REQUEST.remove();
         return r;
     }
@@ -158,58 +158,153 @@ public final class CtmBake {
 
     /**
      * AVERAGE mode, after the bakery baked piece (0,0,0) of a repeat block into {@code output}:
-     * bakes every piece of the cycle and writes the per-pixel average colour of each face (depth
-     * and coverage stay those of piece (0,0,0): every piece has the same geometry, only textures
-     * differ, so this works for slabs and other partial blocks too). A face's texture depends only on the offsets in its own
-     * plane, so each face averages over that plane's grid. A whole cycle tiles with itself, and so
-     * does its average.
+     * bakes the other pieces of the cycle and writes the per-pixel average colour of each face
+     * (depth and coverage stay those of piece (0,0,0): every piece has the same geometry, only
+     * textures differ, so this works for slabs and other partial blocks too). A face's texture
+     * depends only on the offsets in its own plane, so each face averages over that plane's grid.
+     * A whole cycle tiles with itself, and so does its average.
+     *
+     * <p>Speed (this runs on Voxy's single model thread, and every piece is a full 6-view software
+     * bake): one piece (x, y, z) serves all three planes at once, the XY sample (x, y) for north and
+     * south, (y, z) for west and east, (x, z) for down and up. With z = (x + y) mod period, an
+     * N x N x N cycle covers all three planes in N*N bakes instead of 3*N*N; each sample is still
+     * taken exactly once, so the average is unchanged. Results are kept by {@link CtmAverageCache}
+     * (in memory and on disk) for any later bake whose piece (0,0,0) comes out identical:
+     * waterlogged twins, every world rejoin (Voxy rebakes all models on each world load) and the
+     * next game launch.
      */
-    public static void average(java.util.function.BiConsumer<BlockState, Long> bake, BlockState state, long output, int[] periods) {
+    public static void average(java.util.function.BiConsumer<BlockState, Long> bake, BlockState state, long output, AverageRequest request) {
         final int pixels = 16 * 16;
-        long scratch = org.lwjgl.system.MemoryUtil.nmemAlloc(6L * pixels * 8);
+        final int bytes = 6 * pixels * 8;
+        long start = System.nanoTime();
+        int[] periods = request.periods();
+        Object key = CtmAverageCache.key(state, request.sprite(), periods, output, bytes);
+        int[] known = CtmAverageCache.get(key);
+        if (known != null) {
+            for (int i = 0; i < known.length; i++) org.lwjgl.system.MemoryUtil.memPutInt(output + (long) i * 8, known[i]);
+            PIECE.remove();
+            AVERAGE_REQUEST.remove();
+            STATS.reused.incrementAndGet();
+            STATS.record(System.nanoTime() - start, 0);
+            return;
+        }
+        long scratch = org.lwjgl.system.MemoryUtil.nmemAlloc(bytes);
         long[] sum = new long[6 * pixels * 4];
         int[] count = new int[6 * pixels];
+        int bakes = 0;
         try {
             int px = periods[0], py = periods[1], pz = periods[2];
-            // faces: 0 down, 1 up, 2 north, 3 south, 4 west, 5 east
-            accumulate(bake, state, scratch, sum, count, new int[]{2, 3}, px, py, 1);
-            accumulate(bake, state, scratch, sum, count, new int[]{4, 5}, 1, py, pz);
-            accumulate(bake, state, scratch, sum, count, new int[]{0, 1}, px, 1, pz);
+            boolean[] xy = new boolean[px * py], yz = new boolean[py * pz], xz = new boolean[px * pz];
+            // faces: 0 down, 1 up, 2 north, 3 south, 4 west, 5 east. Piece (0,0,0) is already in output.
+            add(output, sum, count, true, true, true);
+            xy[0] = yz[0] = xz[0] = true;
+            // Every (x, y), with the z that also brings new (y, z) and (x, z) samples.
+            for (int x = 0; x < px; x++) {
+                for (int y = 0; y < py; y++) {
+                    if (xy[x * py + y]) continue;
+                    int best = 0, bestScore = -1;
+                    for (int k = 0; k < pz; k++) {
+                        int z = (x + y + k) % pz;
+                        int score = (yz[y * pz + z] ? 0 : 1) + (xz[x * pz + z] ? 0 : 1);
+                        if (score > bestScore) {
+                            best = z;
+                            bestScore = score;
+                            if (score == 2) break;
+                        }
+                    }
+                    bakes += piece(bake, state, scratch, sum, count, x, y, best, xy, yz, xz, px, py, pz);
+                }
+            }
+            // (y, z) samples still missing (unequal periods), each with a missing (x, z) if there is one.
+            for (int y = 0; y < py; y++) {
+                for (int z = 0; z < pz; z++) {
+                    if (yz[y * pz + z]) continue;
+                    int x = 0;
+                    for (int k = 0; k < px; k++) {
+                        if (!xz[k * pz + z]) {
+                            x = k;
+                            break;
+                        }
+                    }
+                    bakes += piece(bake, state, scratch, sum, count, x, y, z, xy, yz, xz, px, py, pz);
+                }
+            }
+            for (int x = 0; x < px; x++) {
+                for (int z = 0; z < pz; z++) {
+                    if (!xz[x * pz + z]) bakes += piece(bake, state, scratch, sum, count, x, 0, z, xy, yz, xz, px, py, pz);
+                }
+            }
             for (int i = 0; i < 6 * pixels; i++) {
                 int n = count[i];
                 if (n == 0) continue;
                 int a = (int) (sum[i * 4] / n), b = (int) (sum[i * 4 + 1] / n), g = (int) (sum[i * 4 + 2] / n), r = (int) (sum[i * 4 + 3] / n);
                 org.lwjgl.system.MemoryUtil.memPutInt(output + (long) i * 8, (a << 24) | (b << 16) | (g << 8) | r);
             }
+            int[] colours = new int[CtmAverageCache.COLOURS];
+            for (int i = 0; i < colours.length; i++) colours[i] = org.lwjgl.system.MemoryUtil.memGetInt(output + (long) i * 8);
+            CtmAverageCache.put(key, colours);
         } finally {
             PIECE.remove();
             AVERAGE_REQUEST.remove();
             org.lwjgl.system.MemoryUtil.nmemFree(scratch);
+            STATS.record(System.nanoTime() - start, bakes);
         }
     }
 
-    private static void accumulate(java.util.function.BiConsumer<BlockState, Long> bake, BlockState state, long scratch,
-                                   long[] sum, int[] count, int[] faces, int px, int py, int pz) {
+    /** Bakes one piece and adds the faces of the planes it brings a new sample to. Returns 1. */
+    private static int piece(java.util.function.BiConsumer<BlockState, Long> bake, BlockState state, long scratch,
+                             long[] sum, int[] count, int x, int y, int z, boolean[] xy, boolean[] yz, boolean[] xz,
+                             int px, int py, int pz) {
+        boolean newXy = !xy[x * py + y], newYz = !yz[y * pz + z], newXz = !xz[x * pz + z];
+        xy[x * py + y] = yz[y * pz + z] = xz[x * pz + z] = true;
+        PIECE.set(new BlockPos(x, y, z));
+        bake.accept(state, scratch);
+        add(scratch, sum, count, newXy, newYz, newXz);
+        return 1;
+    }
+
+    private static void add(long picture, long[] sum, int[] count, boolean northSouth, boolean westEast, boolean downUp) {
         final int pixels = 16 * 16;
-        for (int x = 0; x < px; x++) {
-            for (int y = 0; y < py; y++) {
-                for (int z = 0; z < pz; z++) {
-                    PIECE.set(new BlockPos(x, y, z));
-                    bake.accept(state, scratch);
-                    for (int face : faces) {
-                        for (int p = 0; p < pixels; p++) {
-                            int i = face * pixels + p;
-                            int c = org.lwjgl.system.MemoryUtil.memGetInt(scratch + (long) i * 8);
-                            if ((c >>> 24) == 0) continue;
-                            sum[i * 4] += c >>> 24;
-                            sum[i * 4 + 1] += (c >>> 16) & 0xFF;
-                            sum[i * 4 + 2] += (c >>> 8) & 0xFF;
-                            sum[i * 4 + 3] += c & 0xFF;
-                            count[i]++;
-                        }
-                    }
-                }
+        for (int face = 0; face < 6; face++) {
+            boolean take = face < 2 ? downUp : face < 4 ? northSouth : westEast;
+            if (!take) continue;
+            for (int p = 0; p < pixels; p++) {
+                int i = face * pixels + p;
+                int c = org.lwjgl.system.MemoryUtil.memGetInt(picture + (long) i * 8);
+                if ((c >>> 24) == 0) continue;
+                sum[i * 4] += c >>> 24;
+                sum[i * 4 + 1] += (c >>> 16) & 0xFF;
+                sum[i * 4 + 2] += (c >>> 8) & 0xFF;
+                sum[i * 4 + 3] += c & 0xFF;
+                count[i]++;
             }
+        }
+    }
+
+    /** Totals for {@code /lsl voxy ctm} and the log. */
+    public static final AverageStats STATS = new AverageStats();
+
+    public static final class AverageStats {
+        public final java.util.concurrent.atomic.AtomicInteger states = new java.util.concurrent.atomic.AtomicInteger();
+        public final java.util.concurrent.atomic.AtomicInteger reused = new java.util.concurrent.atomic.AtomicInteger();
+        public final java.util.concurrent.atomic.AtomicLong bakes = new java.util.concurrent.atomic.AtomicLong();
+        public final java.util.concurrent.atomic.AtomicLong nanos = new java.util.concurrent.atomic.AtomicLong();
+        private volatile long lastLog;
+
+        void record(long nanos, int bakes) {
+            this.states.incrementAndGet();
+            this.bakes.addAndGet(bakes);
+            this.nanos.addAndGet(nanos);
+            long now = System.nanoTime();
+            if (now - this.lastLog > 2_000_000_000L) {
+                this.lastLog = now;
+                Lsl.LOGGER.info("[LSL/Voxy] {}", this.summary());
+            }
+        }
+
+        public String summary() {
+            return String.format("Repeat CTM average so far: %d block states (%d reused), %d piece bakes, %.0f ms on the Voxy model thread, %d cached",
+                this.states.get(), this.reused.get(), this.bakes.get(), this.nanos.get() / 1e6, CtmAverageCache.size());
         }
     }
 

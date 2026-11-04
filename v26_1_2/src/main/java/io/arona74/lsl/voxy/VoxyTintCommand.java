@@ -31,7 +31,12 @@ public final class VoxyTintCommand {
 
     public static void register() {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) ->
-            dispatcher.register(lit("lsl").then(lit("voxy").then(lit("tint").executes(ctx -> run(ctx.getSource()))))));
+            dispatcher.register(lit("lsl").then(lit("voxy")
+                .then(lit("tint").executes(ctx -> run(ctx.getSource())))
+                .then(lit("ctm").executes(ctx -> {
+                    ctx.getSource().sendFeedback(Component.literal("[LSL] " + CtmBake.STATS.summary()));
+                    return 1;
+                })))));
     }
 
     private static LiteralArgumentBuilder<FabricClientCommandSource> lit(String name) {

@@ -51,7 +51,7 @@ public abstract class SoftwareModelTextureBakeryMixin {
 
     @Inject(method = "renderToOutput", at = @At("RETURN"), cancellable = true)
     private void lsl$plantLook(BlockState state, long outputBuffer, CallbackInfoReturnable<Integer> cir) {
-        int[] average = CtmBake.takeAverageRequest();
+        CtmBake.AverageRequest average = CtmBake.takeAverageRequest();
         if (average != null) {
             SoftwareModelTextureBakery self = (SoftwareModelTextureBakery) (Object) this;
             CtmBake.average((s, out) -> self.renderToOutput(s, out), state, outputBuffer, average);

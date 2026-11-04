@@ -132,7 +132,15 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   - **repeat** textures (CR sandstones spread one texture over 4x4 or 8x8 blocks; the cycle is found
     per axis, up to 8) follow `voxy_ctm_repeat`: `AVERAGE` (default) bakes every piece and averages
     them per pixel into one seamless texture, any shape; `SHRINK` scales the whole cycle into each
-    face, full cubes only; `BASE` keeps the base texture;
+    face, full cubes only; `BASE` keeps the base texture. `AVERAGE` costs extra bakes on Voxy's
+    single model thread, which delays LOD refinement at world load: each piece serves all three face
+    planes at once (an 8x8x8 cycle takes 64 bakes, not 192), and results are kept in memory and in
+    `lsl/ctm_average.bin` in the game folder, reused for every later state whose first piece bakes
+    identically (waterlogged twins, world rejoins, the next launch). The file is saved on leaving a
+    world and on quitting, and is dropped when any mod version or the selected resource packs change;
+    deleting it is always safe. Conquest Reforged has about 2,400 repeat states (about 1,700 distinct
+    results, a few MB on disk).
+    `/lsl voxy ctm` prints the totals, and the log repeats them every 2 s while baking;
   - random textures, which don't repeat, keep the base texture.
 
 ### Voxy bugs worked around
@@ -223,6 +231,7 @@ The repo lives under OneDrive. Check the jar's timestamp before testing (see Aro
   tint, CTM), reeds and lily pads (tall plants, large faces), sandstone cliffs (repeat textures), with
   and without an Iris shaderpack.
 - `/lsl voxy tint` for colour questions.
+- `/lsl voxy ctm` for the repeat-CTM average cost (states, reuses, piece bakes, time).
 
 ## Known limits (Voxy)
 
