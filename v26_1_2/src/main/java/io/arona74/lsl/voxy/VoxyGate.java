@@ -48,6 +48,11 @@ public final class VoxyGate {
         return reason;
     }
 
+    /** The supported builds, for display. */
+    public static String supported() {
+        return String.join(", ", SUPPORTED);
+    }
+
     public static String voxyVersion() {
         return version;
     }

@@ -1,0 +1,92 @@
+// NeoForge 1.21.1 (ModDevGradle; Minecraft runs with Mojang names, so nothing is remapped).
+//
+// Sources:
+//   src/main/java                      loader-agnostic code (shared with the Fabric modules)
+//   neoforge/src/main/{java,resources} NeoForge loader layer (entrypoint, config, DH mixin plugin)
+//   fabric/src/main/java               only the config screen classes, which use no Fabric API
+//   v1_21_1/src/main/java              Minecraft 1.21.1 seams (Compat, option list, preview panel)
+//   fabric/src/main/resources          only assets/ (lang); the mixin config is NeoForge's own
+//   neoforge_1_21_1/src/main/java      this version's ScreenCompat (no Fabric command helper)
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version "${moddev_version}"
+}
+
+version = rootProject.mod_version + "+mc${project.minecraft_version}-neoforge"
+group = rootProject.maven_group
+
+base {
+    archivesName = rootProject.archives_base_name
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neoforge_version
+    mods {
+        lsl {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+def stageShared = tasks.register('stageSharedJava', Sync) {
+    from(rootProject.file('fabric/src/main/java')) {
+        include 'io/arona74/lsl/client/config/ConfigPreview.java'
+        include 'io/arona74/lsl/client/config/ConfigWidgets.java'
+        include 'io/arona74/lsl/client/config/LslConfigScreen.java'
+    }
+    from(rootProject.file('v1_21_1/src/main/java')) {
+        include 'io/arona74/lsl/Compat.java'
+        include 'io/arona74/lsl/client/config/OptionRows.java'
+        include 'io/arona74/lsl/client/config/PreviewPanel.java'
+    }
+    into layout.buildDirectory.dir('sharedJava')
+}
+
+def stageSharedResources = tasks.register('stageSharedResources', Sync) {
+    from(rootProject.file('fabric/src/main/resources')) {
+        include 'assets/**'
+    }
+    into layout.buildDirectory.dir('sharedResources')
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += rootProject.file('src/main/java')
+            srcDirs += rootProject.file('neoforge/src/main/java')
+            srcDir(stageShared)
+        }
+        resources {
+            srcDirs += rootProject.file('neoforge/src/main/resources')
+            srcDir(stageSharedResources)
+        }
+    }
+}
+
+dependencies {
+    // Distant Horizons api + core classes (extracted from the DH 3.3.3 jar; no Minecraft classes).
+    compileOnly files(rootProject.file('libs/distanthorizons-3.3.3-compile.jar'))
+}
+
+processResources {
+    def props = [
+        'version'        : project.version,
+        'neoforge_range' : project.neoforge_range,
+        'minecraft_range': project.minecraft_range,
+    ]
+    inputs.properties props
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand props
+    }
+}
+
+jar {
+    from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}

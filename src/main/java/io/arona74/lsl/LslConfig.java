@@ -51,7 +51,7 @@ public final class LslConfig {
     /** voxy_ground_plants. */
     public enum GroundPlants { AUTO, ON, OFF }
     /** How a full block with a repeating (position-dependent) CTM texture is baked into Voxy. */
-    public enum CtmRepeat { SHRINK, AVERAGE, BASE }
+    public enum CtmRepeat { AVERAGE, BASE }
 
     private static final String CONFIG_FILE = "lsl.json";
     private static final String LANG_FILE = "assets/lsl/lang/en_us.json";
@@ -79,7 +79,6 @@ public final class LslConfig {
     public static boolean voxyMatchTints;
     public static boolean voxyCtm;
     public static CtmRepeat voxyCtmRepeat;
-    public static int voxyTintHeight;
     public static boolean voxyPlantShading;
     public static boolean voxyPlantShadingWithShaders;
     public static double voxyPlantFaceInset;
@@ -130,14 +129,9 @@ public final class LslConfig {
         add(bool("voxy_hide_ext_blades", true, () -> voxyHideExtBlades, v -> voxyHideExtBlades = v)
                 .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.REJOIN));
         add(bool("voxy_full_mipmaps", true, () -> voxyFullMipmaps, v -> voxyFullMipmaps = v)
-                .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.RESTART));
-    }
-    private static final ConfigOption<Boolean> O_VOXY_MATCH_TINTS = add(bool("voxy_match_tints", true,
-            () -> voxyMatchTints, v -> voxyMatchTints = v)
-            .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.REJOIN));
-    static {
-        add(integer("voxy_tint_height", 72, -64, 320, () -> voxyTintHeight, v -> voxyTintHeight = v)
-                .in(ConfigTab.VOXY, "lod").requires(O_VOXY_MATCH_TINTS).mods(VOXY).apply(Apply.REJOIN));
+                .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.RESTART).advanced());
+        add(bool("voxy_match_tints", true, () -> voxyMatchTints, v -> voxyMatchTints = v)
+                .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.REJOIN));
     }
     private static final ConfigOption<Boolean> O_VOXY_CTM = add(bool("voxy_ctm", true, () -> voxyCtm, v -> voxyCtm = v)
             .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.REJOIN));
@@ -156,7 +150,7 @@ public final class LslConfig {
         add(choice("voxy_ground_plants", GroundPlants.AUTO, () -> voxyGroundPlants, v -> voxyGroundPlants = v)
                 .in(ConfigTab.VOXY, "plants").requires(O_VOXY_PLANT_OFFSET).mods(VOXY).apply(Apply.RESTART));
         add(bool("voxy_draw_plants", true, () -> voxyDrawPlants, v -> voxyDrawPlants = v)
-                .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN));
+                .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN).advanced());
         add(decimal("voxy_plant_face_inset", 0.25, 0.0, 0.45, 0.05, () -> voxyPlantFaceInset, v -> voxyPlantFaceInset = v)
                 .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN));
         add(bool("voxy_tall_plants", true, () -> voxyTallPlants, v -> voxyTallPlants = v)
@@ -169,7 +163,7 @@ public final class LslConfig {
         add(bool("voxy_plant_shading_with_shaders", false, () -> voxyPlantShadingWithShaders, v -> voxyPlantShadingWithShaders = v)
                 .in(ConfigTab.VOXY, "plants").requires(O_VOXY_PLANT_SHADING).mods(VOXY).apply(Apply.REJOIN));
         add(decimal("voxy_plant_brightness", 1.0, 0.3, 2.0, 0.05, () -> voxyPlantBrightness, v -> voxyPlantBrightness = v)
-                .in(ConfigTab.VOXY, "plants").requires(O_VOXY_PLANT_SHADING).mods(VOXY).apply(Apply.REJOIN));
+                .in(ConfigTab.VOXY, "plants").requires(O_VOXY_PLANT_SHADING).mods(VOXY).apply(Apply.REJOIN).advanced());
         add(decimal("voxy_plant_saturation", 1.0, 0.0, 1.5, 0.05, () -> voxyPlantSaturation, v -> voxyPlantSaturation = v)
                 .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN));
     }
@@ -268,16 +262,31 @@ public final class LslConfig {
         }
     }
 
+    /** Options removed in an update: dropped from the file without a warning. */
+    private static final java.util.Set<String> RETIRED_KEYS = java.util.Set.of("voxy_tint_height");
+    /** Choices removed in an update ("key=VALUE"): read as the option's default. */
+    private static final java.util.Set<String> RETIRED_VALUES = java.util.Set.of("voxy_ctm_repeat=SHRINK");
+
     /** @return false when a value was invalid, so the file must not be overwritten */
     private static boolean applyJson(JsonObject json, JsonObject extra) {
         boolean valid = true;
         for (ConfigOption<?> option : OPTIONS) {
-            if (json.has(option.key)) valid &= applyValue(option, json.get(option.key));
+            if (!json.has(option.key)) continue;
+            JsonElement value = json.get(option.key);
+            if (value.isJsonPrimitive() && RETIRED_VALUES.contains(option.key + "=" + value.getAsString().toUpperCase(Locale.ROOT))) {
+                Lsl.LOGGER.info("[LSL] '{}' no longer has {}: using {}", option.key, value.getAsString(), option.defaultValue);
+                continue;
+            }
+            valid &= applyValue(option, value);
         }
         // Keys this version does not know (a newer version, or a typo) are kept at the end.
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
             String key = entry.getKey();
             if (key.startsWith("_") || OPTIONS.stream().anyMatch(o -> o.key.equals(key))) continue;
+            if (RETIRED_KEYS.contains(key)) {
+                Lsl.LOGGER.info("[LSL] '{}' was removed and is dropped from {}", key, CONFIG_FILE);
+                continue;
+            }
             Lsl.LOGGER.warn("[LSL] Unknown key '{}' in {} is ignored", key, CONFIG_FILE);
             extra.add(key, entry.getValue());
         }

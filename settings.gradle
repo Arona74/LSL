@@ -4,6 +4,10 @@ pluginManagement {
             name = 'Fabric'
             url = 'https://maven.fabricmc.net/'
         }
+        maven {
+            name = 'NeoForged'
+            url = 'https://maven.neoforged.net/releases'
+        }
         gradlePluginPortal()
     }
 }
@@ -18,3 +22,6 @@ include ':v1_21_11'
 include ':v26_1_2'
 include ':v26_2'
 include ':v26_3'
+
+// NeoForge modules (ModDevGradle). Voxy runs there through Roxy.
+include ':neoforge_1_21_1'

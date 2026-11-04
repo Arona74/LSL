@@ -54,7 +54,7 @@ public final class VoxyTintCommand {
         Biome biome = mc.level.getBiome(pos).value();
         List<BlockTintSource> sources = mc.getBlockColors().getTintSources(state);
         out.sendFeedback(Component.literal("[LSL] " + state + " at " + pos.toShortString() + ", biome "
-            + mc.level.getBiome(pos).getRegisteredName() + ", tint height " + LslConfig.voxyTintHeight
+            + mc.level.getBiome(pos).getRegisteredName() + ", tint height " + TintCapture.HEIGHT
             + ", match tints " + (LslConfig.voxyMatchTints ? "on" : "off")));
         if (sources.isEmpty()) {
             out.sendFeedback(Component.literal("  no tint sources"));

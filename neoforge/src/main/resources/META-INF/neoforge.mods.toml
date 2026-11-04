@@ -1,0 +1,36 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "All-Rights-Reserved"
+
+[[mods]]
+modId = "lsl"
+version = "${version}"
+displayName = "LSL - Layer Supported LOD"
+authors = "Arona74"
+description = '''
+Layers drawn right in LOD renderers: exact layer heights in Distant Horizons, for AronaLayers-gen and Conquest Reforged worlds.
+'''
+
+[[mixins]]
+config = "lsl.dh.mixins.json"
+
+[[dependencies.lsl]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neoforge_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.lsl]]
+modId = "minecraft"
+type = "required"
+versionRange = "${minecraft_range}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.lsl]]
+modId = "distanthorizons"
+type = "optional"
+versionRange = "*"
+ordering = "NONE"
+side = "BOTH"

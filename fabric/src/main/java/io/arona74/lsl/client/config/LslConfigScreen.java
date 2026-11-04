@@ -42,7 +42,7 @@ public class LslConfigScreen extends Screen {
     private boolean discard;
 
     public LslConfigScreen(Screen parent) {
-        this(parent, new ConfigDraft(), lastTab.available ? lastTab : ConfigTab.DISTANT_HORIZONS);
+        this(parent, new ConfigDraft(), startTab());
     }
 
     private LslConfigScreen(Screen parent, ConfigDraft draft, ConfigTab tab) {
@@ -62,9 +62,18 @@ public class LslConfigScreen extends Screen {
         int buttonWidth = Math.min(80, (width - 20) / tabs.size() - 4);
         int x = (width - tabs.size() * (buttonWidth + 4) + 4) / 2;
         for (ConfigTab t : tabs) {
-            Button button = addRenderableWidget(Button.builder(Component.translatable(t.langKey()), b -> reopen(t))
-                    .bounds(x, 22, buttonWidth, 20).build());
-            button.active = t != tab;
+            // The open tab is underlined; a tab whose mod is missing or unsupported is greyed out
+            // and says why on hover.
+            Component label = Component.translatable(t.langKey());
+            if (t == tab) label = label.copy().withStyle(net.minecraft.ChatFormatting.UNDERLINE);
+            Button button = addRenderableWidget(Button.builder(label, b -> {
+                        if (t != tab) reopen(t);
+                    }).bounds(x, 22, buttonWidth, 20).build());
+            ConfigTab.Unusable why = t.unusable();
+            if (why != null) {
+                button.active = false;
+                button.setTooltip(Tooltip.create(Component.translatable(why.langKey(), (Object[]) why.args())));
+            }
             x += buttonWidth + 4;
         }
 
@@ -163,11 +172,18 @@ public class LslConfigScreen extends Screen {
         }
     }
 
-    static List<ConfigTab> visibleTabs() {
-        List<ConfigTab> tabs = new ArrayList<>();
-        for (ConfigTab t : ConfigTab.values()) {
-            if (t.available) tabs.add(t);
+    /** The tab the screen opens on: the last one if still usable, else the first usable one. */
+    static ConfigTab startTab() {
+        if (lastTab.usable()) return lastTab;
+        List<ConfigTab> tabs = visibleTabs();
+        for (ConfigTab t : tabs) {
+            if (t.usable()) return t;
         }
-        return tabs;
+        return tabs.get(0);
+    }
+
+    static List<ConfigTab> visibleTabs() {
+        // Every tab is shown; one this version can't use is greyed out (see init).
+        return new ArrayList<>(List.of(ConfigTab.values()));
     }
 }

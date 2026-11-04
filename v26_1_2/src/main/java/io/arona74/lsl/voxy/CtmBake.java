@@ -22,9 +22,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.SingleThreadedRandomSource;
 import net.minecraft.world.level.lighting.LevelLightEngine;
 import net.minecraft.world.level.material.FluidState;
-import io.arona74.lsl.LayerShapes;
-import org.joml.Vector3f;
-import org.joml.Vector3fc;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -46,11 +43,11 @@ import java.util.Map;
  * stores: a plant stands alone (air around it); any other block is surrounded by copies of itself,
  * which gives the fully connected look walls and floors have from afar. A block whose textures
  * change with position needs more: Conquest Reforged's sandstones spread one large texture over 4x4
- * or 8x8 blocks ("repeat"), and a single piece of it on every block shows as a grid. A whole repeat
- * cycle tiles with itself, so a full cube gets the whole pattern shrunk into each face (the cycle is
- * found per axis, up to 8). Random textures, and partial blocks, keep their base texture, which is
- * made to tile alone. Plants keep the Continuity tile
- * whatever the method (their base textures are the pre-coloured fallbacks). Option {@code voxy_ctm}.
+ * or 8x8 blocks ("repeat"), and a single piece of it on every block shows as a grid: with
+ * {@code voxy_ctm_repeat} AVERAGE, every piece of the cycle (found per axis, up to 8) is baked and
+ * averaged per pixel ({@link #average}); with BASE, the base texture, which is made to tile alone.
+ * Random textures keep their base texture. Plants keep the Continuity tile whatever the method
+ * (their base textures are the pre-coloured fallbacks). Option {@code voxy_ctm}.
  */
 public final class CtmBake {
     private CtmBake() {}
@@ -82,28 +79,15 @@ public final class CtmBake {
             if (periods != null) {
                 // Repeat textures (a large texture spread over N x M blocks) change with position;
                 // one fixed piece of the pattern on every block makes a grid.
-                int px = periods[0], py = periods[1], pz = periods[2];
-                LslConfig.CtmRepeat mode = LslConfig.voxyCtmRepeat;
-                // AVERAGE only blends colours over the same geometry, so any shape works; SHRINK
-                // rescales faces into the block, which only fits a full cube.
-                boolean fits = mode == LslConfig.CtmRepeat.AVERAGE || LayerShapes.isFullCube(state);
-                if (px == 0 || !fits || mode == LslConfig.CtmRepeat.BASE) {
-                    out.addAll(plain); // random textures, or a partial block: the base texture tiles alone
+                if (periods[0] == 0 || LslConfig.voxyCtmRepeat == LslConfig.CtmRepeat.BASE) {
+                    out.addAll(plain); // random textures, or BASE: the base texture tiles alone
                     return;
                 }
-                if (mode == LslConfig.CtmRepeat.AVERAGE) {
-                    // One piece per bake; the bakery hook bakes the other pieces and averages them.
-                    if (piece == null) AVERAGE_REQUEST.set(new AverageRequest(periods, sprite));
-                    add(mesh, sprite, layer, null, 0, 0, 0, 1, 1, 1, culled, unculled);
-                } else {
-                    // A whole repeat cycle tiles with itself: the full pattern shrunk into each face.
-                    tile(model, state, sprite, layer, Direction.Axis.Z, px, py, 1, culled, unculled);
-                    tile(model, state, sprite, layer, Direction.Axis.X, 1, py, pz, culled, unculled);
-                    tile(model, state, sprite, layer, Direction.Axis.Y, px, 1, pz, culled, unculled);
-                }
-            } else {
-                add(mesh, sprite, layer, null, 0, 0, 0, 1, 1, 1, culled, unculled);
+                // AVERAGE: one piece per bake; the bakery hook bakes the other pieces and averages
+                // them. It only blends colours over the same geometry, so any shape works.
+                if (piece == null) AVERAGE_REQUEST.set(new AverageRequest(periods, sprite));
             }
+            add(mesh, sprite, layer, culled, unculled);
             if (unculled.isEmpty() && culled.isEmpty()) {
                 out.addAll(plain);
                 return;
@@ -317,54 +301,21 @@ public final class CtmBake {
         return 0;
     }
 
-    /**
-     * The faces across {@code normal} (one layer of blocks), drawn at every position of one repeat
-     * cycle and scaled into the block: the piece for offset (a, b) lands where that block would be.
-     */
-    private static void tile(BlockStateModel model, BlockState state, TextureAtlasSprite sprite, ChunkSectionLayer layer,
-                             Direction.Axis normal, int px, int py, int pz,
-                             Map<Direction, List<BakedQuad>> culled, List<BakedQuad> unculled) {
-        for (int x = 0; x < px; x++) {
-            for (int y = 0; y < py; y++) {
-                for (int z = 0; z < pz; z++) {
-                    add(emit(model, state, new BlockPos(x, y, z)), sprite, layer, normal, x, y, z, px, py, pz, culled, unculled);
-                }
-            }
-        }
-    }
-
-    /**
-     * The mesh's quads as BakedQuads, bucketed by cull face. With {@code onlyAxis} set, keeps the
-     * quads facing along it and maps each position p to (p + offset) / period on the other axes.
-     */
-    private static void add(MutableMesh mesh, TextureAtlasSprite sprite, ChunkSectionLayer layer, Direction.Axis onlyAxis,
-                            int ox, int oy, int oz, int px, int py, int pz,
+    /** The mesh's quads as BakedQuads, bucketed by cull face. */
+    private static void add(MutableMesh mesh, TextureAtlasSprite sprite, ChunkSectionLayer layer,
                             Map<Direction, List<BakedQuad>> culled, List<BakedQuad> unculled) {
         mesh.forEach(q -> {
-            if (onlyAxis != null && q.lightFace().getAxis() != onlyAxis) return;
             BakedQuad quad = q.toBakedQuad(sprite);
             var m = quad.materialInfo();
             if (m.layer() == null && layer != null) {
                 m = new BakedQuad.MaterialInfo(m.sprite(), layer, m.itemRenderType(), m.tintIndex(), m.shade(), m.lightEmission());
-            }
-            if (onlyAxis != null || m != quad.materialInfo()) {
-                quad = new BakedQuad(
-                    scale(quad.position0(), onlyAxis, ox, oy, oz, px, py, pz), scale(quad.position1(), onlyAxis, ox, oy, oz, px, py, pz),
-                    scale(quad.position2(), onlyAxis, ox, oy, oz, px, py, pz), scale(quad.position3(), onlyAxis, ox, oy, oz, px, py, pz),
+                quad = new BakedQuad(quad.position0(), quad.position1(), quad.position2(), quad.position3(),
                     quad.packedUV0(), quad.packedUV1(), quad.packedUV2(), quad.packedUV3(), quad.direction(), m);
             }
             Direction cull = q.cullFace();
             if (cull == null) unculled.add(quad);
             else culled.computeIfAbsent(cull, k -> new ArrayList<>()).add(quad);
         });
-    }
-
-    private static Vector3fc scale(Vector3fc p, Direction.Axis keep, int ox, int oy, int oz, int px, int py, int pz) {
-        if (keep == null) return p;
-        float x = keep == Direction.Axis.X ? p.x() : (p.x() + ox) / px;
-        float y = keep == Direction.Axis.Y ? p.y() : (p.y() + oy) / py;
-        float z = keep == Direction.Axis.Z ? p.z() : (p.z() + oz) / pz;
-        return new Vector3f(x, y, z);
     }
 
     private static ChunkSectionLayer firstLayer(List<BlockStateModelPart> parts) {

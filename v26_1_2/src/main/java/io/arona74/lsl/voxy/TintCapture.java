@@ -1,7 +1,6 @@
 package io.arona74.lsl.voxy;
 
 import io.arona74.lsl.Lsl;
-import io.arona74.lsl.LslConfig;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.core.BlockPos;
@@ -22,13 +21,19 @@ import java.lang.reflect.Method;
  * distant fescue and the like far too yellow. And a colormap without biome blending only finds its
  * biome in a real level, which Voxy's stand-in is not.
  *
- * <p>So the capture happens at {@code voxy_tint_height} instead of Y = 0, and a Polytone colormap is
+ * <p>So the capture happens at {@link #HEIGHT} instead of Y = 0, and a Polytone colormap is
  * sampled directly with Voxy's biome, the way Polytone itself does in a real level
  * ({@code Colormap.sampleColor(level, state, position, biome, item)}). Polytone is reached by
  * reflection: LSL doesn't depend on it.
  */
 public final class TintCapture {
     private TintCapture() {}
+
+    /**
+     * Height the colours are taken at: a typical surface. It used to be an option
+     * (voxy_tint_height), but it changed almost nothing at surface heights.
+     */
+    public static final int HEIGHT = 72;
 
     /** Every Polytone colour source (colormaps, compounds, layers...) implements this. */
     private static final String COLOR_GETTER = "net.mehvahdjukaar.polytone.content.colormap.IColorGetter";
@@ -37,7 +42,7 @@ public final class TintCapture {
     private static volatile boolean polytoneBroken;
 
     public static int colour(BlockTintSource source, BlockState state, BlockAndTintGetter getter, Biome biome) {
-        int y = LslConfig.voxyTintHeight;
+        int y = HEIGHT;
         if (biome != null && !polytoneBroken && isColormap(source)) {
             try {
                 return (int) sampleColor.invoke(source, getter, state, new Vec3(0.5, y + 0.5, 0.5), biome, (ItemStack) null);

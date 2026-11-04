@@ -5,7 +5,8 @@ Conquest Reforged):
 
 - **[Distant Horizons](https://modrinth.com/mod/distanthorizons)**: exact layer heights in eighths of
   a block, with whole-block rounding as the fallback. This moved here from AronaLayers-gen (it shipped
-  in gen 1.6.0). Minecraft 1.20.1, 1.21.1, 1.21.11, 26.1.2, 26.2, 26.3 (Fabric).
+  in gen 1.6.0). Minecraft 1.20.1, 1.21.1, 1.21.11, 26.1.2, 26.2, 26.3 (Fabric), and 1.21.1
+  (NeoForge).
 - **[Voxy](https://modrinth.com/mod/voxy)**: layers kept at every LOD level, plants lowered onto them,
   and Conquest Reforged's look (Polytone colours, Continuity textures, tall and wide plant models)
   carried into the LODs. **Proof of concept**, 26.1.2 only, Voxy `0.2.18-beta` (commit `4643445e`)
@@ -116,7 +117,7 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
 - **Tint colours** (`voxy_match_tints`, `ModelTintMixin` -> `TintCapture`). Voxy captures each tint
   once per biome at height 0 in a stand-in world. CR's Polytone colormaps pick their colour row from
   the height (`y_axis: (POS_Y + 64 + noise) / 512`) and, without biome blending, only find their
-  biome in a real level. Tints are now captured at `voxy_tint_height`, and Polytone colour sources
+  biome in a real level. Tints are now captured at Y 72 (`TintCapture.HEIGHT`; it was an option, but the height made almost no difference at the surface), and Polytone colour sources
   (anything implementing `IColorGetter`, reached by reflection) are sampled directly with Voxy's biome
   through `sampleColor`. Colormaps always count as biome dependent. `/lsl voxy tint` prints, for the
   block under the crosshair, each tint source's colour in the world, as plain Voxy captures it, and as
@@ -131,8 +132,7 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   - plants keep the Continuity tile;
   - **repeat** textures (CR sandstones spread one texture over 4x4 or 8x8 blocks; the cycle is found
     per axis, up to 8) follow `voxy_ctm_repeat`: `AVERAGE` (default) bakes every piece and averages
-    them per pixel into one seamless texture, any shape; `SHRINK` scales the whole cycle into each
-    face, full cubes only; `BASE` keeps the base texture. `AVERAGE` costs extra bakes on Voxy's
+    them per pixel into one seamless texture, any shape; `BASE` keeps the base texture. `AVERAGE` costs extra bakes on Voxy's
     single model thread, which delays LOD refinement at world load: each piece serves all three face
     planes at once (an 8x8x8 cycle takes 64 bakes, not 192), and results are kept in memory and in
     `lsl/ctm_average.bin` in the game folder, reused for every later state whose first piece bakes
@@ -157,14 +157,17 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
 ## Config
 
 In game: Mod Menu's **Configure** button, or `/lsl config`. The screen follows AronaLayers-gen's:
-one tab per LOD mod (Voxy only in builds with the Voxy hooks), options on the left, and on the right
-what the hovered option does, its default and when a change applies. Done or Escape saves, Cancel
-discards, and the **Advanced** toggle shows tuning options. Options whose mod isn't installed are
-greyed out.
+one tab per LOD mod, options on the left, and on the right what the hovered option does, its default
+and when a change applies. Done or Escape saves, Cancel discards, and the **Advanced** toggle shows
+tuning options. The open tab is underlined. A tab is greyed out, with the reason on hover, when its mod
+isn't installed, when this Minecraft version has no LSL support for it (Voxy outside 26.1.2), or when
+the installed version isn't supported (a Voxy build not in `VoxyGate.SUPPORTED`, or an old
+AronaLayers-gen that still handles Distant Horizons itself). Options whose mod isn't installed are
+greyed out too.
 
 The file is `config/lsl.json`. Like gen's `layer_config.json`, it's generated from the option
 registry in `LslConfig`, with a `_comment_<key>` above each value (from `en_us.json`), and rewritten
-at startup. Your values are kept; unknown keys are kept and logged. An unreadable or invalid file is
+at startup. Your values are kept; unknown keys are kept and logged; removed options (`voxy_tint_height`) and choices (`voxy_ctm_repeat` `SHRINK`, read as `AVERAGE`) are dropped. An unreadable or invalid file is
 left as it is.
 
 "Rejoin" means leaving and rejoining the world: Voxy rebuilds its models on every world load, and
@@ -179,21 +182,20 @@ those options are read at bake time. "Restart" options decide which mixins or sh
 | `voxy_layer_mip` | `true` | restart; new Voxy LODs |
 | `voxy_shape_culling` | `true` | restart |
 | `voxy_hide_ext_blades` | `true` | rejoin |
-| `voxy_full_mipmaps` | `true` | restart |
+| `voxy_full_mipmaps` (advanced) | `true` | restart |
 | `voxy_match_tints` | `true` | rejoin |
-| `voxy_tint_height` | `72` (-64 to 320) | rejoin |
 | `voxy_ctm` | `true` | rejoin |
-| `voxy_ctm_repeat` | `AVERAGE` (`SHRINK`, `BASE`) | rejoin |
+| `voxy_ctm_repeat` | `AVERAGE` (`BASE`) | rejoin |
 | `voxy_split_large_quads` | `true` | rejoin |
 | `voxy_flat_layers` | `true` | restart |
 | `voxy_plant_offset` | `true` | restart |
 | `voxy_ground_plants` | `AUTO` (`ON`, `OFF`) | restart |
-| `voxy_draw_plants` | `true` | rejoin |
+| `voxy_draw_plants` (advanced) | `true` | rejoin |
 | `voxy_plant_face_inset` | `0.25` (0 to 0.45) | rejoin |
 | `voxy_tall_plants` | `true` | restart |
 | `voxy_plant_shading` | `false` | rejoin |
 | `voxy_plant_shading_with_shaders` | `false` | rejoin |
-| `voxy_plant_brightness` | `1.0` (0.3 to 2.0) | rejoin |
+| `voxy_plant_brightness` (advanced) | `1.0` (0.3 to 2.0) | rejoin |
 | `voxy_plant_saturation` | `1.0` (0 to 1.5) | rejoin |
 
 On the first start, the `dh_*` values are copied from AronaLayers-gen's
@@ -207,8 +209,10 @@ goes in `assets/lsl/textures/gui/config/<key>.png` (none ship yet).
 |---|---|
 | `src/main/java` | Loader-agnostic: `LayerInfo`, `LayerShapes`, `LslConfig`, `dh/*`, `mixin/dh/*` |
 | `fabric/src/main/java` | Fabric, any MC version: entrypoints, DH mixin plugin, `/lsl` command, config screen |
+| `neoforge/src/main/{java,resources}` | NeoForge, any MC version: `@Mod` entrypoint, config loading, DH mixin plugin, `/lsl` command, `neoforge.mods.toml` |
 | `v<mc>/src/main/java` | Per MC version: `Compat`, the screen seams (`ScreenCompat`, `OptionRows`, `PreviewPanel`; 1.20.1 also has its own `LslConfigScreen`); `v26_1_2` also has the Voxy hooks |
-| `gradle/lsl-module.gradle` | Setup shared by every version module |
+| `gradle/lsl-module.gradle` | Setup shared by every Fabric version module |
+| `neoforge_1_21_1` | NeoForge 1.21.1 (ModDevGradle): picks the config screen classes from `fabric/` and the 1.21.1 seams from `v1_21_1/`, adds its own `ScreenCompat` |
 
 ## Building
 
@@ -216,7 +220,9 @@ goes in `assets/lsl/textures/gui/config/<key>.png` (none ship yet).
    forbids redistribution, so `libs/voxy-*.jar` is git-ignored and the jar is compile-only.
    `libs/distanthorizons-3.3.3-compile.jar` (DH api + core classes, LGPL) is committed, as it was in gen.
 2. Run `gradlew build` (all versions) or `gradlew :v1_21_1:build`. Output:
-   `v<mc>/build/libs/lsl-<version>+mc<mc>.jar`.
+   `v<mc>/build/libs/lsl-<version>+mc<mc>.jar`, and
+   `neoforge_1_21_1/build/libs/lsl-<version>+mc1.21.1-neoforge.jar`. The NeoForge module's first build
+   needs the network (ModDevGradle downloads NeoForge's dev files); `--offline` works after that.
 
 The repo lives under OneDrive. Check the jar's timestamp before testing (see AronaLayers-gen notes).
 
@@ -236,7 +242,7 @@ The repo lives under OneDrive. Check the jar's timestamp before testing (see Aro
 ## Known limits (Voxy)
 
 - One look per block state: no per-position variation (random textures and repeat patterns are
-  averaged or use the base texture; colours are one per biome, taken at `voxy_tint_height`).
+  averaged or use the base texture; colours are one per biome, taken at Y 72).
 - Tall plants are full height at LOD0 only; a block above the plant stops it there.
 - Grounding of ordinary plants only looks inside the 32-block Voxy section. CR plants don't need a
   neighbour, so they're always lowered.
@@ -248,9 +254,8 @@ The repo lives under OneDrive. Check the jar's timestamp before testing (see Aro
 
 ## Roadmap
 
-- Report the Voxy bugs above upstream.
-- Trim test-era options (full mipmaps, brightness, shrink mode, tint height) or mark them advanced.
+- NeoForge 1.21.1 through Roxy (runs the Voxy build made for Fabric 1.21.11). The shared `src/`
+  holds no loader code.
 - Tall plants beyond LOD0.
-- NeoForge: the `neo-voxy` / `voxy-1.21.1-neoforge` forks. The shared `src/` holds no loader code.
 - Other MC versions for the Voxy side, following the module ladder; gate per Voxy build after diffing
   the hooked code.

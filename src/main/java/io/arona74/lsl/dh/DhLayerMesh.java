@@ -57,7 +57,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   <li>{@link #refine} rewrites each of its 64x64 render columns in eighth units. Every visible
  *       partial layer's one-block segment is cut out of DH's column and replaced by a cap
  *       {@code layers/8} high, with the water of a waterlogged layer above it and the vanilla snow
- *       resting on it; all other segments are rescaled by 8. The section is flagged ({@link DhEighths}).</li>
+ *       resting on it. Vanilla snow on any other block gets a cap of its own (DH drops snow of 1-3
+ *       layers and draws 4-7 as a full block). All other segments are rescaled by 8. The section
+ *       is flagged ({@link DhEighths}).</li>
  *   <li>Building that section's mesh (ColumnBufferMixin) multiplies the culling height by 8
  *       (ColumnBoxMixin) and packs each vertex Y as whole block + 3 bits of eighths
  *       ({@link #packVertexY}, LodVertexMixin).</li>
@@ -275,9 +277,12 @@ public final class DhLayerMesh {
         for (int i = 0; i < column.size(); i++) {
             long value = column.getLong(i);
             LayerInfo layer = work.info(FullDataPointUtil.getId(value));
-            if (layer.eighths == 0 || layer.snow) continue;
-
+            if (layer.eighths == 0) continue;
             int bottom = FullDataPointUtil.getBottomY(value);
+            // Vanilla snow on a dry partial layer is drawn with that layer's cap (below); snow on
+            // anything else gets a cap of its own.
+            if (layer.snow && restsOnDryLayer(work, column, i, bottom)) continue;
+
             int top = bottom + FullDataPointUtil.getHeight(value);
             // Only the top block of the run: layers do not stack on themselves, so a taller run is
             // DH's downsampling stretching the top block's id over the span it merged (up to the
@@ -289,7 +294,10 @@ public final class DhLayerMesh {
             }
             if (visibleIndex >= nativeCount) return;
             long visible = nativeData[offset + visibleIndex];
-            if (RenderDataPointUtil.getYMax(visible) < y + 1) continue;
+            // DH drops snow of 1-3 layers and colours the block under it instead (snow of 4-7 is
+            // a full block): such snow is visible when that block's top is.
+            int visibleTop = layer.snow && layer.eighths <= 3 ? y : y + 1;
+            if (RenderDataPointUtil.getYMax(visible) < visibleTop) continue;
 
             // Vanilla snow resting on the layer is drawn as part of its cap.
             LayerInfo snow = null;
@@ -306,6 +314,15 @@ public final class DhLayerMesh {
             }
             work.append(y, value, layer, snowValue, snow, RenderDataPointUtil.getColor(visible));
         }
+    }
+
+    /** Whether the snow at column index {@code i} sits right on a dry partial layer, which draws it. */
+    private static boolean restsOnDryLayer(Work work, LongArrayList column, int i, int bottom) {
+        if (i + 1 >= column.size()) return false;
+        long below = column.getLong(i + 1);
+        if (FullDataPointUtil.getBottomY(below) + FullDataPointUtil.getHeight(below) != bottom) return false;
+        LayerInfo layer = work.info(FullDataPointUtil.getId(below));
+        return layer.eighths > 0 && !layer.snow && !layer.wet;
     }
 
     /** DH's column with each cap's block cut out and the caps inserted, sorted top down. */
