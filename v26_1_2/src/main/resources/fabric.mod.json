@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "lsl",
+  "version": "${version}",
+  "name": "LSL - Layer Supported LOD",
+  "description": "Layers drawn right in LOD renderers: exact layer heights in Distant Horizons and Voxy, for AronaLayers-gen and Conquest Reforged worlds.",
+  "authors": ["Arona74"],
+  "license": "All-Rights-Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["io.arona74.lsl.fabric.LslFabric"],
+    "client": ["io.arona74.lsl.fabric.LslFabricClient", "io.arona74.lsl.voxy.VoxyClientInit"],
+    "modmenu": ["io.arona74.lsl.client.config.ModMenuIntegration"]
+  },
+  "mixins": ["lsl.dh.mixins.json", "lsl.voxy.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~26.1.2",
+    "java": ">=25"
+  },
+  "suggests": {
+    "modmenu": "*",
+    "distanthorizons": "*",
+    "voxy": ">=${voxy_version}",
+    "aronalayersgen": "*"
+  }
+}

@@ -1,0 +1,2 @@
+// Root project: holds shared sources (src/main/java) pulled in by every version module.
+// Nothing is built here.

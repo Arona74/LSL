@@ -1,0 +1,20 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'lsl'
+
+// One module per Minecraft version (Fabric), same ladder as AronaLayers-gen. Distant Horizons
+// support is in every module; Voxy support only where a Voxy build has been checked (26.1.2).
+include ':v1_20_1'
+include ':v1_21_1'
+include ':v1_21_11'
+include ':v26_1_2'
+include ':v26_2'
+include ':v26_3'

@@ -1,0 +1,25 @@
+plugins {
+    // 26.x ships deobfuscated: non-remapping Loom, no mappings dependency.
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+apply from: rootProject.file('gradle/lsl-module.gradle')
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
+    // Voxy is compile-only and never shipped (its licence forbids redistribution).
+    // Drop the matching jar into libs/ (see README).
+    compileOnly files(rootProject.file("libs/voxy-${voxy_version}-${minecraft_version}.jar"))
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 25
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}

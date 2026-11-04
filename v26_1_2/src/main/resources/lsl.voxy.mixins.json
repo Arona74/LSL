@@ -1,0 +1,24 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "io.arona74.lsl.mixin",
+  "plugin": "io.arona74.lsl.voxy.LslMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "voxy.BlockBakeAccessor",
+    "voxy.MipperMixin",
+    "voxy.ModelBakerySubsystemMixin",
+    "voxy.ModelFactorySliceMixin",
+    "voxy.RenderDataFactoryInvoker",
+    "voxy.ModelDepthMixin",
+    "voxy.ModelFactoryMixin",
+    "voxy.ModelStoreMixin",
+    "voxy.ModelTintMixin",
+    "voxy.SoftwareModelTextureBakeryMixin",
+    "voxy.RenderDataFactoryMixin",
+    "voxy.ShaderLoadingParserMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

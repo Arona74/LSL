@@ -1,0 +1,62 @@
+// Shared setup for every Fabric version module (applied after the module's Loom plugin).
+//
+// Source layout:
+//   src/main/java            loader-agnostic code (pure Minecraft + Distant Horizons API, DH mixins)
+//   fabric/src/main/java     Fabric code that is the same on every Minecraft version
+//   fabric/src/main/resources
+//   <module>/src/main/...    version-specific code (Compat, Voxy hooks) and fabric.mod.json
+
+version = rootProject.mod_version + "+mc${project.minecraft_version}"
+group = rootProject.maven_group
+
+base {
+    archivesName = rootProject.archives_base_name
+}
+
+// A module that replaces shared Fabric files with its own copies (1.20.1's config screen) lists
+// them in `ext.fabricOverridden` before applying this script: the shared tree is then staged
+// without them.
+def overridden = project.findProperty('fabricOverridden') ?: []
+def fabricJava = rootProject.file('fabric/src/main/java')
+def stageFabricJava = tasks.register('stageFabricJava', Sync) {
+    from(fabricJava) {
+        exclude overridden
+    }
+    into layout.buildDirectory.dir('fabricJava')
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs += rootProject.file('src/main/java')
+            if (overridden.isEmpty()) {
+                srcDirs += fabricJava
+            } else {
+                srcDir(stageFabricJava)
+            }
+        }
+        resources {
+            srcDirs += rootProject.file('fabric/src/main/resources')
+        }
+    }
+}
+
+dependencies {
+    // Distant Horizons api + core classes (extracted from the DH 3.3.3 jar; no Minecraft classes).
+    // Compile-only: DH stays an optional runtime mod, see dh/DistantHorizonsCompat.
+    compileOnly files(rootProject.file('libs/distanthorizons-3.3.3-compile.jar'))
+}
+
+processResources {
+    def props = ['version': project.version, 'voxy_version': project.findProperty('voxy_version') ?: '']
+    inputs.properties props
+    filesMatching('fabric.mod.json') {
+        expand props
+    }
+}
+
+jar {
+    from(rootProject.file('THIRD_PARTY_NOTICES.md'))
+    // Compile-only stand-ins for Mod Menu's API: shipping them would shadow Mod Menu's own.
+    exclude 'com/terraformersmc/**'
+}

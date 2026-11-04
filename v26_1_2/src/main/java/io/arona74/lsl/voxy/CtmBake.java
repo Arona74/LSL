@@ -1,0 +1,331 @@
+package io.arona74.lsl.voxy;
+
+import io.arona74.lsl.Lsl;
+import io.arona74.lsl.LslConfig;
+import net.fabricmc.fabric.api.client.renderer.v1.Renderer;
+import net.fabricmc.fabric.api.client.renderer.v1.mesh.MutableMesh;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
+import net.minecraft.client.renderer.chunk.ChunkSectionLayer;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.sprite.Material;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.CardinalLighting;
+import net.minecraft.world.level.ColorResolver;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.SingleThreadedRandomSource;
+import net.minecraft.world.level.lighting.LevelLightEngine;
+import net.minecraft.world.level.material.FluidState;
+import io.arona74.lsl.LayerShapes;
+import org.joml.Vector3f;
+import org.joml.Vector3fc;
+
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Connected and random textures (Continuity) in Voxy's LODs.
+ *
+ * <p>Continuity wraps block models and picks its textures only while the game draws a block in the
+ * world, from the block's neighbours and position. Voxy bakes a block state once, from the model's
+ * plain parts, so it got the base textures. Conquest Reforged leans on this: its fescues' base
+ * textures are pre-coloured fallbacks while the textures Continuity swaps in are near grey, made to
+ * be coloured by the Polytone tint, so the LODs showed them doubly coloured (small fescue yellow,
+ * green meadow fescue dark green).
+ *
+ * <p>Here a Continuity model is asked to draw itself, through Fabric's renderer API, at block 0,0,0
+ * of a stand-in world, and its quads replace the plain parts. One look per block state, as Voxy
+ * stores: a plant stands alone (air around it); any other block is surrounded by copies of itself,
+ * which gives the fully connected look walls and floors have from afar. A block whose textures
+ * change with position needs more: Conquest Reforged's sandstones spread one large texture over 4x4
+ * or 8x8 blocks ("repeat"), and a single piece of it on every block shows as a grid. A whole repeat
+ * cycle tiles with itself, so a full cube gets the whole pattern shrunk into each face (the cycle is
+ * found per axis, up to 8). Random textures, and partial blocks, keep their base texture, which is
+ * made to tile alone. Plants keep the Continuity tile
+ * whatever the method (their base textures are the pre-coloured fallbacks). Option {@code voxy_ctm}.
+ */
+public final class CtmBake {
+    private CtmBake() {}
+
+    private static final String CONTINUITY = "me.pepperbell.continuity.";
+    private static final java.util.concurrent.atomic.AtomicInteger FAILURES = new java.util.concurrent.atomic.AtomicInteger();
+
+    public static boolean handles(BlockStateModel model) {
+        return LslConfig.voxyCtm && model != null && model.getClass().getName().startsWith(CONTINUITY);
+    }
+
+    /**
+     * Collects the model's parts as Continuity would draw them in a world. Falls back to the plain
+     * parts if anything goes wrong.
+     */
+    public static void collect(BlockStateModel model, BlockState state, RandomSource random, List<BlockStateModelPart> out) {
+        List<BlockStateModelPart> plain = new ArrayList<>();
+        model.collectParts(random, plain);
+        try {
+            ChunkSectionLayer layer = firstLayer(plain);
+            Material.Baked particle = model.particleMaterial();
+            TextureAtlasSprite sprite = particle.sprite();
+            MutableMesh mesh = emit(model, state, BlockPos.ZERO);
+            Map<Direction, List<BakedQuad>> culled = new EnumMap<>(Direction.class);
+            List<BakedQuad> unculled = new ArrayList<>();
+            int[] periods = PlantLook.isPlant(state) ? null : periods(model, state, mesh);
+            if (periods != null) {
+                // Repeat textures (a large texture spread over N x M blocks) change with position;
+                // one fixed piece of the pattern on every block makes a grid.
+                int px = periods[0], py = periods[1], pz = periods[2];
+                LslConfig.CtmRepeat mode = LslConfig.voxyCtmRepeat;
+                // AVERAGE only blends colours over the same geometry, so any shape works; SHRINK
+                // rescales faces into the block, which only fits a full cube.
+                boolean fits = mode == LslConfig.CtmRepeat.AVERAGE || LayerShapes.isFullCube(state);
+                if (px == 0 || !fits || mode == LslConfig.CtmRepeat.BASE) {
+                    out.addAll(plain); // random textures, or a partial block: the base texture tiles alone
+                    return;
+                }
+                if (mode == LslConfig.CtmRepeat.AVERAGE) {
+                    // One piece per bake; the bakery hook bakes every piece and averages them.
+                    BlockPos piece = PIECE.get();
+                    if (piece == null) {
+                        AVERAGE_REQUEST.set(periods);
+                        piece = BlockPos.ZERO;
+                    }
+                    add(piece.equals(BlockPos.ZERO) ? mesh : emit(model, state, piece), sprite, layer,
+                        null, 0, 0, 0, 1, 1, 1, culled, unculled);
+                } else {
+                    // A whole repeat cycle tiles with itself: the full pattern shrunk into each face.
+                    tile(model, state, sprite, layer, Direction.Axis.Z, px, py, 1, culled, unculled);
+                    tile(model, state, sprite, layer, Direction.Axis.X, 1, py, pz, culled, unculled);
+                    tile(model, state, sprite, layer, Direction.Axis.Y, px, 1, pz, culled, unculled);
+                }
+            } else {
+                add(mesh, sprite, layer, null, 0, 0, 0, 1, 1, 1, culled, unculled);
+            }
+            if (unculled.isEmpty() && culled.isEmpty()) {
+                out.addAll(plain);
+                return;
+            }
+            boolean ao = plain.isEmpty() || plain.get(0).useAmbientOcclusion();
+            out.add(new Part(culled, unculled, ao, particle, model.materialFlags()));
+        } catch (Throwable t) {
+            int n = FAILURES.incrementAndGet();
+            if (n <= 5) Lsl.LOGGER.warn("[LSL/Voxy] Couldn't bake connected textures for {}, using its base textures: {}", state, t.toString());
+            if (n == 5) Lsl.LOGGER.warn("[LSL/Voxy] (further connected-texture failures are not logged)");
+            out.addAll(plain);
+        }
+    }
+
+    private static final int MAX_PERIOD = 8;
+    private static final int[] NOT_REPEAT = new int[0];
+    private static final java.util.Map<BlockState, int[]> PERIODS = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** Piece of the repeat cycle to bake (AVERAGE mode, set by the bakery hook), null = normal bake. */
+    static final ThreadLocal<BlockPos> PIECE = new ThreadLocal<>();
+    /** Set by a normal bake of a repeat block in AVERAGE mode: the cycle's periods. */
+    static final ThreadLocal<int[]> AVERAGE_REQUEST = new ThreadLocal<>();
+
+    /** The pending AVERAGE request of the bake that just finished (never inside a piece bake). */
+    public static int[] takeAverageRequest() {
+        if (PIECE.get() != null) return null;
+        int[] r = AVERAGE_REQUEST.get();
+        AVERAGE_REQUEST.remove();
+        return r;
+    }
+
+    /** Repeat periods per axis ({0, 0, 0} if the textures vary but don't repeat), null if they don't vary. */
+    private static int[] periods(BlockStateModel model, BlockState state, MutableMesh origin) {
+        int[] p = PERIODS.computeIfAbsent(state, s -> {
+            if (uvs(origin).equals(uvs(emit(model, s, OTHER)))) return NOT_REPEAT;
+            int px = period(model, s, origin, 1, 0, 0);
+            int py = period(model, s, origin, 0, 1, 0);
+            int pz = period(model, s, origin, 0, 0, 1);
+            return px == 0 || py == 0 || pz == 0 ? new int[]{0, 0, 0} : new int[]{px, py, pz};
+        });
+        return p == NOT_REPEAT ? null : p;
+    }
+
+    private static MutableMesh emit(BlockStateModel model, BlockState state, BlockPos pos) {
+        MutableMesh mesh = Renderer.get().mutableMesh();
+        model.emitQuads(mesh.emitter(), standIn(state, pos), pos, state, new SingleThreadedRandomSource(42L), d -> false);
+        return mesh;
+    }
+
+    /**
+     * AVERAGE mode, after the bakery baked piece (0,0,0) of a repeat block into {@code output}:
+     * bakes every piece of the cycle and writes the per-pixel average colour of each face (depth
+     * and coverage stay those of piece (0,0,0): every piece has the same geometry, only textures
+     * differ, so this works for slabs and other partial blocks too). A face's texture depends only on the offsets in its own
+     * plane, so each face averages over that plane's grid. A whole cycle tiles with itself, and so
+     * does its average.
+     */
+    public static void average(java.util.function.BiConsumer<BlockState, Long> bake, BlockState state, long output, int[] periods) {
+        final int pixels = 16 * 16;
+        long scratch = org.lwjgl.system.MemoryUtil.nmemAlloc(6L * pixels * 8);
+        long[] sum = new long[6 * pixels * 4];
+        int[] count = new int[6 * pixels];
+        try {
+            int px = periods[0], py = periods[1], pz = periods[2];
+            // faces: 0 down, 1 up, 2 north, 3 south, 4 west, 5 east
+            accumulate(bake, state, scratch, sum, count, new int[]{2, 3}, px, py, 1);
+            accumulate(bake, state, scratch, sum, count, new int[]{4, 5}, 1, py, pz);
+            accumulate(bake, state, scratch, sum, count, new int[]{0, 1}, px, 1, pz);
+            for (int i = 0; i < 6 * pixels; i++) {
+                int n = count[i];
+                if (n == 0) continue;
+                int a = (int) (sum[i * 4] / n), b = (int) (sum[i * 4 + 1] / n), g = (int) (sum[i * 4 + 2] / n), r = (int) (sum[i * 4 + 3] / n);
+                org.lwjgl.system.MemoryUtil.memPutInt(output + (long) i * 8, (a << 24) | (b << 16) | (g << 8) | r);
+            }
+        } finally {
+            PIECE.remove();
+            AVERAGE_REQUEST.remove();
+            org.lwjgl.system.MemoryUtil.nmemFree(scratch);
+        }
+    }
+
+    private static void accumulate(java.util.function.BiConsumer<BlockState, Long> bake, BlockState state, long scratch,
+                                   long[] sum, int[] count, int[] faces, int px, int py, int pz) {
+        final int pixels = 16 * 16;
+        for (int x = 0; x < px; x++) {
+            for (int y = 0; y < py; y++) {
+                for (int z = 0; z < pz; z++) {
+                    PIECE.set(new BlockPos(x, y, z));
+                    bake.accept(state, scratch);
+                    for (int face : faces) {
+                        for (int p = 0; p < pixels; p++) {
+                            int i = face * pixels + p;
+                            int c = org.lwjgl.system.MemoryUtil.memGetInt(scratch + (long) i * 8);
+                            if ((c >>> 24) == 0) continue;
+                            sum[i * 4] += c >>> 24;
+                            sum[i * 4 + 1] += (c >>> 16) & 0xFF;
+                            sum[i * 4 + 2] += (c >>> 8) & 0xFF;
+                            sum[i * 4 + 3] += c & 0xFF;
+                            count[i]++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Smallest step along (dx, dy, dz) after which the textures repeat (1-8), 0 if none. */
+    private static int period(BlockStateModel model, BlockState state, MutableMesh origin, int dx, int dy, int dz) {
+        List<Float> base = uvs(origin);
+        for (int k = 1; k <= MAX_PERIOD; k++) {
+            if (uvs(emit(model, state, new BlockPos(dx * k, dy * k, dz * k))).equals(base)) return k;
+        }
+        return 0;
+    }
+
+    /**
+     * The faces across {@code normal} (one layer of blocks), drawn at every position of one repeat
+     * cycle and scaled into the block: the piece for offset (a, b) lands where that block would be.
+     */
+    private static void tile(BlockStateModel model, BlockState state, TextureAtlasSprite sprite, ChunkSectionLayer layer,
+                             Direction.Axis normal, int px, int py, int pz,
+                             Map<Direction, List<BakedQuad>> culled, List<BakedQuad> unculled) {
+        for (int x = 0; x < px; x++) {
+            for (int y = 0; y < py; y++) {
+                for (int z = 0; z < pz; z++) {
+                    add(emit(model, state, new BlockPos(x, y, z)), sprite, layer, normal, x, y, z, px, py, pz, culled, unculled);
+                }
+            }
+        }
+    }
+
+    /**
+     * The mesh's quads as BakedQuads, bucketed by cull face. With {@code onlyAxis} set, keeps the
+     * quads facing along it and maps each position p to (p + offset) / period on the other axes.
+     */
+    private static void add(MutableMesh mesh, TextureAtlasSprite sprite, ChunkSectionLayer layer, Direction.Axis onlyAxis,
+                            int ox, int oy, int oz, int px, int py, int pz,
+                            Map<Direction, List<BakedQuad>> culled, List<BakedQuad> unculled) {
+        mesh.forEach(q -> {
+            if (onlyAxis != null && q.lightFace().getAxis() != onlyAxis) return;
+            BakedQuad quad = q.toBakedQuad(sprite);
+            var m = quad.materialInfo();
+            if (m.layer() == null && layer != null) {
+                m = new BakedQuad.MaterialInfo(m.sprite(), layer, m.itemRenderType(), m.tintIndex(), m.shade(), m.lightEmission());
+            }
+            if (onlyAxis != null || m != quad.materialInfo()) {
+                quad = new BakedQuad(
+                    scale(quad.position0(), onlyAxis, ox, oy, oz, px, py, pz), scale(quad.position1(), onlyAxis, ox, oy, oz, px, py, pz),
+                    scale(quad.position2(), onlyAxis, ox, oy, oz, px, py, pz), scale(quad.position3(), onlyAxis, ox, oy, oz, px, py, pz),
+                    quad.packedUV0(), quad.packedUV1(), quad.packedUV2(), quad.packedUV3(), quad.direction(), m);
+            }
+            Direction cull = q.cullFace();
+            if (cull == null) unculled.add(quad);
+            else culled.computeIfAbsent(cull, k -> new ArrayList<>()).add(quad);
+        });
+    }
+
+    private static Vector3fc scale(Vector3fc p, Direction.Axis keep, int ox, int oy, int oz, int px, int py, int pz) {
+        if (keep == null) return p;
+        float x = keep == Direction.Axis.X ? p.x() : (p.x() + ox) / px;
+        float y = keep == Direction.Axis.Y ? p.y() : (p.y() + oy) / py;
+        float z = keep == Direction.Axis.Z ? p.z() : (p.z() + oz) / pz;
+        return new Vector3f(x, y, z);
+    }
+
+    private static ChunkSectionLayer firstLayer(List<BlockStateModelPart> parts) {
+        for (BlockStateModelPart part : parts) {
+            for (Direction d : DIRECTIONS) {
+                for (BakedQuad q : part.getQuads(d)) {
+                    if (q.materialInfo().layer() != null) return q.materialInfo().layer();
+                }
+            }
+        }
+        return null;
+    }
+
+    private static final Direction[] DIRECTIONS = {
+        null, Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST
+    };
+
+    /** The block at 0,0,0; around it copies of itself, or air for plants. */
+    /** A second spot, off every 2, 3, 4 and 8 block repeat and with a different random hash. */
+    private static final BlockPos OTHER = new BlockPos(5, 7, 3);
+
+    private static List<Float> uvs(MutableMesh mesh) {
+        List<Float> out = new ArrayList<>();
+        mesh.forEach(q -> {
+            for (int v = 0; v < 4; v++) {
+                out.add(q.u(v));
+                out.add(q.v(v));
+            }
+        });
+        return out;
+    }
+
+    private static BlockAndTintGetter standIn(BlockState state, BlockPos origin) {
+        BlockState around = PlantLook.isPlant(state) ? Blocks.AIR.defaultBlockState() : state;
+        return new BlockAndTintGetter() {
+            @Override public LevelLightEngine getLightEngine() { return LevelLightEngine.EMPTY; }
+            @Override public CardinalLighting cardinalLighting() { return CardinalLighting.DEFAULT; }
+            @Override public int getBlockTint(BlockPos p, ColorResolver r) { return -1; }
+            @Override public BlockEntity getBlockEntity(BlockPos p) { return null; }
+            @Override public BlockState getBlockState(BlockPos p) { return p.equals(origin) ? state : around; }
+            @Override public FluidState getFluidState(BlockPos p) { return getBlockState(p).getFluidState(); }
+            @Override public int getHeight() { return 384; }
+            @Override public int getMinY() { return -64; }
+        };
+    }
+
+    private record Part(Map<Direction, List<BakedQuad>> culled, List<BakedQuad> unculled, boolean ao,
+                        Material.Baked particle, int flags) implements BlockStateModelPart {
+        @Override
+        public List<BakedQuad> getQuads(Direction side) {
+            if (side == null) return this.unculled;
+            return this.culled.getOrDefault(side, List.of());
+        }
+
+        @Override public boolean useAmbientOcclusion() { return this.ao; }
+        @Override public Material.Baked particleMaterial() { return this.particle; }
+        @Override public int materialFlags() { return this.flags; }
+    }
+}
