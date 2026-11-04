@@ -40,3 +40,16 @@ dependency (`libs/distanthorizons-3.3.3-compile.jar`); none of it is distributed
 LSL compiles against Voxy (all rights reserved, no redistribution) as a compile-only dependency
 that is never committed or shipped; no Voxy code is copied into LSL. LSL only hooks Voxy at
 runtime through mixins.
+
+## Forgified Fabric API
+
+The NeoForge module compiles against Fabric's renderer API and API base as Forgified Fabric API
+ships them for 1.21.1 (Apache-2.0; `libs/ffapi-fabric-renderer-api-v1-*.jar`,
+`libs/ffapi-fabric-api-base-*.jar`), as compile-only dependencies; none of it is distributed in
+LSL's jars. At runtime they come from the Forgified Fabric API that Roxy requires.
+
+## Sodium
+
+The NeoForge module compiles against Sodium 0.8.13 for NeoForge 1.21.1 (Polyform Shield License)
+as a compile-only dependency that is never committed or shipped (`libs/sodium-*.jar` is
+git-ignored); LSL subclasses one of its render contexts at runtime (`SodiumCtmContext`).

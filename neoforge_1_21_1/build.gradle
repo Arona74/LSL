@@ -4,9 +4,10 @@
 //   src/main/java                      loader-agnostic code (shared with the Fabric modules)
 //   neoforge/src/main/{java,resources} NeoForge loader layer (entrypoint, config, DH mixin plugin)
 //   fabric/src/main/java               only the config screen classes, which use no Fabric API
-//   v1_21_1/src/main/java              Minecraft 1.21.1 seams (Compat, option list, preview panel)
+//   v1_21_1/src/main/java              Minecraft 1.21.1 screen seams (option list, preview panel)
 //   fabric/src/main/resources          only assets/ (lang); the mixin config is NeoForge's own
-//   neoforge_1_21_1/src/main/java      this version's ScreenCompat (no Fabric command helper)
+//   neoforge_1_21_1/src/main/java      Compat (with the Voxy hooks), ScreenCompat, the Voxy hooks (voxy/*,
+//                                      mixin/voxy/*, for Voxy as Roxy patches it) and lsl.voxy.mixins.json
 plugins {
     id 'java'
     id 'net.neoforged.moddev' version "${moddev_version}"
@@ -37,7 +38,6 @@ def stageShared = tasks.register('stageSharedJava', Sync) {
         include 'io/arona74/lsl/client/config/LslConfigScreen.java'
     }
     from(rootProject.file('v1_21_1/src/main/java')) {
-        include 'io/arona74/lsl/Compat.java'
         include 'io/arona74/lsl/client/config/OptionRows.java'
         include 'io/arona74/lsl/client/config/PreviewPanel.java'
     }
@@ -68,6 +68,17 @@ sourceSets {
 dependencies {
     // Distant Horizons api + core classes (extracted from the DH 3.3.3 jar; no Minecraft classes).
     compileOnly files(rootProject.file('libs/distanthorizons-3.3.3-compile.jar'))
+    // Voxy as Roxy patches it for NeoForge 1.21.1 (Mojang names, Roxy's bridges): made offline by
+    // running Roxy's own patcher on the Voxy jar (see README). Voxy may not be redistributed, so
+    // the jar is git-ignored and compile-only.
+    compileOnly files(rootProject.file("libs/voxy-${project.voxy_version}-roxy-${project.minecraft_version}.jar"))
+    // Fabric's renderer API as Forgified Fabric API ships it for 1.21.1 (Apache 2.0, taken from the
+    // FFAPI jar Roxy requires): CtmBake asks Continuity models to draw themselves through it.
+    compileOnly files(rootProject.file('libs/ffapi-fabric-renderer-api-v1-3.4.1+9125b6dc19.jar'),
+        rootProject.file('libs/ffapi-fabric-api-base-0.4.42+d1308ded19.jar'))
+    // Sodium 0.8.13 for NeoForge (Polyform Shield; git-ignored, compile-only): with Sodium as the
+    // renderer, CtmBake's capture must be one of Sodium's own block render contexts.
+    compileOnly files(rootProject.file('libs/sodium-neoforge-0.8.13+mc1.21.1-mod.jar'))
 }
 
 processResources {

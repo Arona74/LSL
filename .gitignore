@@ -22,3 +22,5 @@ run/
 # dependency only and must never be committed. Copy it from your instance (see README).
 libs/voxy-*.jar
 libs/distant*.jar
+# Sodium (Polyform Shield): compile-only for the NeoForge connected-texture capture, never committed.
+libs/sodium-*.jar

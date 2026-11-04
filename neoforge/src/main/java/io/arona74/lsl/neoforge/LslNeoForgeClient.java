@@ -20,6 +20,7 @@ final class LslNeoForgeClient {
     private LslNeoForgeClient() {}
 
     static void init(IEventBus modBus, ModContainer container, boolean dh) {
+        io.arona74.lsl.voxy.VoxyClientInit.init();
         container.registerExtensionPoint(IConfigScreenFactory.class, (mod, parent) -> new LslConfigScreen(parent));
         NeoForge.EVENT_BUS.addListener((RegisterClientCommandsEvent event) -> {
             LiteralArgumentBuilder<CommandSourceStack> root = DhCommand.<CommandSourceStack>literal("lsl")

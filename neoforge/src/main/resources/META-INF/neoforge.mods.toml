@@ -14,6 +14,10 @@ Layers drawn right in LOD renderers: exact layer heights in Distant Horizons, fo
 [[mixins]]
 config = "lsl.dh.mixins.json"
 
+# Voxy hooks (through Roxy); every NeoForge module ships this config, empty where it has no Voxy support.
+[[mixins]]
+config = "lsl.voxy.mixins.json"
+
 [[dependencies.lsl]]
 modId = "neoforge"
 type = "required"
@@ -27,6 +31,13 @@ type = "required"
 versionRange = "${minecraft_range}"
 ordering = "NONE"
 side = "BOTH"
+
+[[dependencies.lsl]]
+modId = "voxy"
+type = "optional"
+versionRange = "*"
+ordering = "AFTER"
+side = "CLIENT"
 
 [[dependencies.lsl]]
 modId = "distanthorizons"
