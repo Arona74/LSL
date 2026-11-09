@@ -1,11 +1,6 @@
 package io.arona74.lsl.voxy;
 
 import io.arona74.lsl.Lsl;
-import net.neoforged.fml.ModList;
-import net.neoforged.fml.loading.FMLPaths;
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.GameShuttingDownEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -32,7 +27,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * Results of the repeat-CTM AVERAGE bake ({@link CtmBake#average}), kept for the session and on
+ * Results of the repeat-CTM AVERAGE bake ({@link CtmAverage#average}), kept for the session and on
  * disk ({@code lsl/ctm_average.bin} in the game folder), so a state is averaged once per setup, not
  * once per world load. Voxy rebakes every model on each world load, and Conquest Reforged has about
  * 2,400 repeat states (about 54,000 piece bakes, 4 s on Voxy's single model thread).
@@ -66,8 +61,8 @@ public final class CtmAverageCache {
     });
 
     public static void register() {
-        NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> saveLater());
-        NeoForge.EVENT_BUS.addListener((GameShuttingDownEvent event) -> save());
+        Platform.onLeaveWorld(CtmAverageCache::saveLater);
+        Platform.onGameStop(CtmAverageCache::save);
     }
 
     /** The cache key for this bake, or null if it can't be built (then nothing is cached). */
@@ -133,10 +128,7 @@ public final class CtmAverageCache {
 
     private static String currentFingerprint() {
         if (modsPart == null) {
-            List<String> mods = new ArrayList<>();
-            for (var m : ModList.get().getMods()) {
-                mods.add(m.getModId() + "@" + m.getVersion());
-            }
+            List<String> mods = Platform.modVersions();
             mods.sort(Comparator.naturalOrder());
             modsPart = String.join(",", mods);
         }
@@ -150,7 +142,7 @@ public final class CtmAverageCache {
     }
 
     private static Path file() {
-        return FMLPaths.GAMEDIR.get().resolve("lsl").resolve("ctm_average.bin");
+        return Platform.gameDir().resolve("lsl").resolve("ctm_average.bin");
     }
 
     private static void load(String expected) {

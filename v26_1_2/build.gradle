@@ -5,6 +5,9 @@ plugins {
 
 apply from: rootProject.file('gradle/lsl-module.gradle')
 
+// The Voxy hooks shared with the other Voxy modules (written against 26.x names; this module's seams are voxy/Platform and voxy/VoxyMc).
+sourceSets.main.java.srcDirs += rootProject.file('voxy/src/main/java')
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${loader_version}"

@@ -31,7 +31,7 @@ final class VoxyShapes {
         try {
             for (int x = 0; x < 4; x++) {
                 for (int z = 0; z < 4; z++) {
-                    Vec3 offset = state.getOffset(new BlockPos(x * 7 + 1, 0, z * 13 + 3));
+                    Vec3 offset = VoxyMc.offset(state, new BlockPos(x * 7 + 1, 0, z * 13 + 3));
                     maxY = Math.max(maxY, offset.y);
                 }
             }

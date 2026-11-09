@@ -6,8 +6,10 @@
 //   fabric/src/main/java               only the config screen classes, which use no Fabric API
 //   v1_21_1/src/main/java              Minecraft 1.21.1 screen seams (option list, preview panel)
 //   fabric/src/main/resources          only assets/ (lang); the mixin config is NeoForge's own
-//   neoforge_1_21_1/src/main/java      Compat (with the Voxy hooks), ScreenCompat, the Voxy hooks (voxy/*,
-//                                      mixin/voxy/*, for Voxy as Roxy patches it) and lsl.voxy.mixins.json
+//   voxy/src/main/java                 the shared Voxy hooks, staged with 26.x class names mapped to 1.21.1's
+//   neoforge_1_21_1/src/main/java      Compat (with the Voxy hooks), ScreenCompat, the Voxy seams for 1.21.1 and
+//                                      Roxy (voxy/Platform, VoxyMc, CtmBake, SodiumCtmContext, two bakery/shader mixins)
+//                                      and lsl.voxy.mixins.json
 plugins {
     id 'java'
     id 'net.neoforged.moddev' version "${moddev_version}"
@@ -44,6 +46,22 @@ def stageShared = tasks.register('stageSharedJava', Sync) {
     into layout.buildDirectory.dir('sharedJava')
 }
 
+// The shared Voxy hooks are written against Minecraft 26.x. Classes that only moved package are
+// mapped here, on import lines only; anything that changed shape goes through voxy/VoxyMc.
+def voxyImports = [
+    'net.minecraft.client.resources.model.geometry.BakedQuad': 'net.minecraft.client.renderer.block.model.BakedQuad',
+]
+def stageVoxy = tasks.register('stageVoxyJava', Sync) {
+    from(rootProject.file('voxy/src/main/java'))
+    inputs.property('voxyImports', voxyImports)
+    filter { String line ->
+        if (!line.startsWith('import ')) return line
+        voxyImports.each { moved, now -> line = line.replace("import ${moved};", "import ${now};") }
+        return line
+    }
+    into layout.buildDirectory.dir('voxyJava')
+}
+
 def stageSharedResources = tasks.register('stageSharedResources', Sync) {
     from(rootProject.file('fabric/src/main/resources')) {
         include 'assets/**'
@@ -57,6 +75,7 @@ sourceSets {
             srcDirs += rootProject.file('src/main/java')
             srcDirs += rootProject.file('neoforge/src/main/java')
             srcDir(stageShared)
+            srcDir(stageVoxy)
         }
         resources {
             srcDirs += rootProject.file('neoforge/src/main/resources')

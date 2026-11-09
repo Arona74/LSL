@@ -61,9 +61,9 @@ Voxy has no API, so every change below is a mixin on its internals, gated to `0.
 
 **NeoForge 1.21.1 (Roxy).** Roxy rewrites the Fabric Voxy jar for NeoForge 1.21.1 at game start
 (Mojang names, its own bridge calls), so `neoforge_1_21_1` hooks Voxy *as Roxy patched it*: it
-compiles against that patched jar and is gated to Voxy `0.2.16-beta` with Roxy `0.4.1`. The hooks
-are a copy of the 26.1.2 ones with 1.21.1 seams (`QuadData` for packed `BakedQuad`s, the bakery's
-`BakedModel.getQuads(state, side, random)` call). Voxy's mesher, mipper and quad layout are identical
+compiles against that patched jar and is gated to Voxy `0.2.16-beta` with Roxy `0.4.1`. It shares
+the hooks in `voxy/` with 26.1.2; its own `voxy/VoxyMc` reads 1.21.1's packed `BakedQuad`s, and its
+bakery mixin wraps the `BakedModel.getQuads(state, side, random)` call. Voxy's mesher, mipper and quad layout are identical
 between 0.2.16 and 0.2.18. Ported: layer mip, shape culling, flat layer shading, ext blades, split
 large faces, plant offsets and grounding, plant face inset, full mipmaps, tall plants, connected
 textures with the repeat average and its cache. Not yet: tint matching (Polytone, Conquest Reforged).
@@ -227,9 +227,10 @@ goes in `assets/lsl/textures/gui/config/<key>.png` (none ship yet).
 | `src/main/java` | Loader-agnostic: `LayerInfo`, `LayerShapes`, `LslConfig`, `dh/*`, `mixin/dh/*` |
 | `fabric/src/main/java` | Fabric, any MC version: entrypoints, DH mixin plugin, `/lsl` command, config screen |
 | `neoforge/src/main/{java,resources}` | NeoForge, any MC version: `@Mod` entrypoint, config loading, DH mixin plugin, `/lsl` command, `neoforge.mods.toml` |
-| `v<mc>/src/main/java` | Per MC version: `Compat`, the screen seams (`ScreenCompat`, `OptionRows`, `PreviewPanel`; 1.20.1 also has its own `LslConfigScreen`); `v26_1_2` also has the Voxy hooks |
+| `voxy/src/main/java` | The Voxy hooks shared by every module that has them (`v26_1_2`, `neoforge_1_21_1`), written against 26.x names. Each such module adds `voxy/Platform` (loader, Voxy builds, quads and models of its MC version), `CtmBake` (drawing a Continuity model through its Fabric renderer API), the bakery and shader-loader mixins, and `lsl.voxy.mixins.json`. The NeoForge module stages this tree with the classes that only moved package mapped on import lines |
+| `v<mc>/src/main/java` | Per MC version: `Compat`, the screen seams (`ScreenCompat`, `OptionRows`, `PreviewPanel`; 1.20.1 also has its own `LslConfigScreen`); `v26_1_2` also has its Voxy seams, tint matching and `/lsl voxy` |
 | `gradle/lsl-module.gradle` | Setup shared by every Fabric version module |
-| `neoforge_1_21_1` | NeoForge 1.21.1 (ModDevGradle): picks the config screen classes from `fabric/` and the 1.21.1 screen seams from `v1_21_1/`; its own `Compat`, `ScreenCompat` and the Voxy hooks for Roxy |
+| `neoforge_1_21_1` | NeoForge 1.21.1 (ModDevGradle): picks the config screen classes from `fabric/` and the 1.21.1 screen seams from `v1_21_1/`; its own `Compat`, `ScreenCompat` and the Voxy seams for 1.21.1 and Roxy (with `SodiumCtmContext`) |
 | `scripts/RoxyPatch.java` | Makes the Roxy-patched Voxy jar the NeoForge module compiles against |
 
 ## Building
@@ -275,7 +276,6 @@ The repo lives under OneDrive. Check the jar's timestamp before testing (see Aro
 ## Roadmap
 
 - NeoForge 1.21.1 through Roxy: tint matching (needs a Conquest Reforged NeoForge test instance).
-- Merge the 26.1.2 and NeoForge copies of the Voxy hooks where they don't differ.
 - Tall plants beyond LOD0.
 - Other MC versions for the Voxy side, following the module ladder; gate per Voxy build after diffing
   the hooked code.

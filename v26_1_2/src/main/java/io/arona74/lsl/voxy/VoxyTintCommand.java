@@ -34,7 +34,7 @@ public final class VoxyTintCommand {
             dispatcher.register(lit("lsl").then(lit("voxy")
                 .then(lit("tint").executes(ctx -> run(ctx.getSource())))
                 .then(lit("ctm").executes(ctx -> {
-                    ctx.getSource().sendFeedback(Component.literal("[LSL] " + CtmBake.STATS.summary()));
+                    ctx.getSource().sendFeedback(Component.literal("[LSL] " + CtmAverage.STATS.summary()));
                     return 1;
                 })))));
     }

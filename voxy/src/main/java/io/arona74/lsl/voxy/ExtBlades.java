@@ -1,7 +1,7 @@
 package io.arona74.lsl.voxy;
 
 import io.arona74.lsl.LslConfig;
-import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.state.BlockState;
 import org.joml.Vector3fc;
@@ -45,10 +45,10 @@ public final class ExtBlades {
 
     /** No coordinate is shared by all four corners: the quad doesn't lie in a block-aligned plane. */
     private static boolean isDiagonal(BakedQuad quad) {
-        Vector3fc a = QuadData.position(quad, 0);
+        Vector3fc a = VoxyMc.position(quad, 0);
         boolean sameX = true, sameY = true, sameZ = true;
         for (int v = 1; v < 4; v++) {
-            Vector3fc b = QuadData.position(quad, v);
+            Vector3fc b = VoxyMc.position(quad, v);
             sameX &= Math.abs(b.x() - a.x()) < EPS;
             sameY &= Math.abs(b.y() - a.y()) < EPS;
             sameZ &= Math.abs(b.z() - a.z()) < EPS;

@@ -2,6 +2,7 @@ package io.arona74.lsl.mixin.voxy;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import io.arona74.lsl.voxy.CtmAverage;
 import io.arona74.lsl.voxy.CtmBake;
 import io.arona74.lsl.voxy.ExtBlades;
 import io.arona74.lsl.voxy.PlantLook;
@@ -26,7 +27,7 @@ import java.util.List;
  * (ExtBlades), tall-plant slices moved down into their cell (TallPlants), quads bigger than a block
  * cut up (QuadSplit), then plant shading and brightness, and flat layer shading on the result
  * (PlantLook). Continuity models get the quads CtmBake drew through Fabric's renderer API instead
- * of their plain ones, and repeat patterns are averaged after the bake (CtmBake.average).
+ * of their plain ones, and repeat patterns are averaged after the bake (CtmAverage.average).
  */
 @Mixin(value = SoftwareModelTextureBakery.class, remap = false)
 public abstract class SoftwareModelTextureBakeryMixin {
@@ -34,7 +35,7 @@ public abstract class SoftwareModelTextureBakeryMixin {
         target = "Lnet/minecraft/client/resources/model/BakedModel;getQuads(Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/util/RandomSource;)Ljava/util/List;"))
     private List<BakedQuad> lsl$quads(BakedModel model, BlockState quadState, Direction direction, RandomSource random,
                                       Operation<List<BakedQuad>> original) {
-        List<BakedQuad> quads = CtmBake.handles(model) ? CtmBake.quads(model, quadState, direction) : null;
+        List<BakedQuad> quads = CtmAverage.handles(model) ? CtmBake.quads(model, quadState, direction) : null;
         if (quads == null) quads = original.call(model, quadState, direction, random);
         return QuadSplit.split(TallPlants.reshape(ExtBlades.filter(quads, direction, quadState), quadState));
     }
@@ -47,10 +48,10 @@ public abstract class SoftwareModelTextureBakeryMixin {
     @Inject(method = "renderToOutput", at = @At("RETURN"), cancellable = true)
     private void lsl$plantLook(BlockState state, long outputBuffer, CallbackInfoReturnable<Integer> cir) {
         CtmBake.endBake();
-        CtmBake.AverageRequest average = CtmBake.takeAverageRequest();
+        CtmAverage.AverageRequest average = CtmAverage.takeAverageRequest();
         if (average != null) {
             SoftwareModelTextureBakery self = (SoftwareModelTextureBakery) (Object) this;
-            CtmBake.average((s, out) -> self.renderToOutput(s, out), state, outputBuffer, average);
+            CtmAverage.average((s, out) -> self.renderToOutput(s, out), state, outputBuffer, average);
         }
         int flags = cir.getReturnValue();
         int adjusted = PlantLook.applyLayer(state, PlantLook.apply(state, outputBuffer, flags));

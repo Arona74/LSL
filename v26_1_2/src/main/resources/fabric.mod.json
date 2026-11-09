@@ -9,7 +9,7 @@
   "environment": "*",
   "entrypoints": {
     "main": ["io.arona74.lsl.fabric.LslFabric"],
-    "client": ["io.arona74.lsl.fabric.LslFabricClient", "io.arona74.lsl.voxy.VoxyClientInit"],
+    "client": ["io.arona74.lsl.fabric.LslFabricClient", "io.arona74.lsl.voxy.VoxyFabricEntry"],
     "modmenu": ["io.arona74.lsl.client.config.ModMenuIntegration"]
   },
   "mixins": ["lsl.dh.mixins.json", "lsl.voxy.mixins.json"],

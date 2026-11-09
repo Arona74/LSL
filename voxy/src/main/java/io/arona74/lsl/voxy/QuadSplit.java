@@ -1,7 +1,7 @@
 package io.arona74.lsl.voxy;
 
 import io.arona74.lsl.LslConfig;
-import net.minecraft.client.renderer.block.model.BakedQuad;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
@@ -48,7 +48,7 @@ public final class QuadSplit {
         for (int a = 0; a < 3; a++) {
             float min = Float.MAX_VALUE, max = -Float.MAX_VALUE;
             for (int v = 0; v < 4; v++) {
-                float c = coord(QuadData.position(q, v), a);
+                float c = coord(VoxyMc.position(q, v), a);
                 min = Math.min(min, c);
                 max = Math.max(max, c);
             }
@@ -58,13 +58,13 @@ public final class QuadSplit {
     }
 
     private static void cut(BakedQuad q, List<BakedQuad> out) {
-        Vector3fc p0 = QuadData.position(q, 0), p1 = QuadData.position(q, 1), p2 = QuadData.position(q, 2), p3 = QuadData.position(q, 3);
+        Vector3fc p0 = VoxyMc.position(q, 0), p1 = VoxyMc.position(q, 1), p2 = VoxyMc.position(q, 2), p3 = VoxyMc.position(q, 3);
         int ns = Math.max(1, (int) Math.ceil(Math.max(p0.distance(p1), p3.distance(p2)) / MAX_PIECE));
         int nt = Math.max(1, (int) Math.ceil(Math.max(p0.distance(p3), p1.distance(p2)) / MAX_PIECE));
         float[] u = new float[4], v = new float[4];
         for (int k = 0; k < 4; k++) {
-            u[k] = QuadData.u(q, k);
-            v[k] = QuadData.v(q, k);
+            u[k] = VoxyMc.u(q, k);
+            v[k] = VoxyMc.v(q, k);
         }
         for (int j = 0; j < nt; j++) {
             float t0 = (float) j / nt, t1 = (float) (j + 1) / nt;
@@ -75,7 +75,7 @@ public final class QuadSplit {
                 if (outside(a, b, c, d)) continue;
                 float[] pu = {lerpU(u, s0, t0), lerpU(u, s1, t0), lerpU(u, s1, t1), lerpU(u, s0, t1)};
                 float[] pv = {lerpU(v, s0, t0), lerpU(v, s1, t0), lerpU(v, s1, t1), lerpU(v, s0, t1)};
-                out.add(QuadData.with(q, new Vector3fc[]{a, b, c, d}, pu, pv));
+                out.add(VoxyMc.with(q, new Vector3fc[]{a, b, c, d}, pu, pv));
             }
         }
     }

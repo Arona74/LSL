@@ -3,15 +3,17 @@ package io.arona74.lsl.voxy;
 import io.arona74.lsl.Lsl;
 import io.arona74.lsl.LslConfig;
 import io.arona74.lsl.config.ConfigTab;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.loader.api.FabricLoader;
 
-/** Reports which Voxy hooks are on (the hooks themselves are mixins, see LslMixinPlugin). */
-public final class VoxyClientInit implements ClientModInitializer {
-    @Override
-    public void onInitializeClient() {
-        if (!FabricLoader.getInstance().isModLoaded("voxy")) return;
-        VoxyTintCommand.register();
+/**
+ * Client start with Voxy: marks the Voxy tab usable or not, and reports which hooks are on (the
+ * hooks themselves are mixins, see LslMixinPlugin). Called by the loader's client entry point
+ * (VoxyFabricEntry, LslNeoForgeClient); every NeoForge module provides this class.
+ */
+public final class VoxyClientInit {
+    private VoxyClientInit() {}
+
+    public static void init() {
+        if (!Platform.isLoaded("voxy")) return;
         ConfigTab.VOXY.setCheck(() -> VoxyGate.active() ? null
             : new ConfigTab.Unusable("config.lsl.tab.unsupported", "Voxy", VoxyGate.voxyVersion(), VoxyGate.supported()));
         if (!VoxyGate.active()) {
@@ -19,13 +21,14 @@ public final class VoxyClientInit implements ClientModInitializer {
             return;
         }
         CtmAverageCache.register();
-        String version = FabricLoader.getInstance().getModContainer("lsl")
-            .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("?");
-        Lsl.LOGGER.info("[LSL/Voxy] LSL {} on Voxy {} - layer mip: {}, shape culling: {}, hide grass blades: {}, full mipmaps: {}, split large faces: {}, connected textures: {}, match tints: {}, connected repeat: {}, flat layers: {}, plant offsets: {}{}, plant grounding: {},"
+        String version = Platform.modVersion(Lsl.MOD_ID);
+        Lsl.LOGGER.info("[LSL/Voxy] LSL {} on Voxy {} - layer mip: {}, shape culling: {}, hide grass blades: {}, full mipmaps: {}, split large faces: {}, connected textures: {} (repeat: {}), match tints: {}, flat layers: {}, plant offsets: {}{}, plant grounding: {},"
                 + " draw plants: {}, plant face inset: {}, tall plants: {}, plant shading: {} (with shaders: {}), plant brightness: {}, plant saturation: {}",
-            version, VoxyGate.voxyVersion(),
+            version == null ? "?" : version, VoxyGate.voxyVersion(),
             onOff(LslConfig.voxyLayerMip), onOff(LslConfig.voxyShapeCulling),
-            onOff(LslConfig.voxyHideExtBlades), onOff(LslConfig.voxyFullMipmaps), onOff(LslConfig.voxySplitLargeQuads), onOff(LslConfig.voxyCtm), onOff(LslConfig.voxyMatchTints), LslConfig.voxyCtmRepeat, onOff(LslConfig.voxyFlatLayers),
+            onOff(LslConfig.voxyHideExtBlades), onOff(LslConfig.voxyFullMipmaps), onOff(LslConfig.voxySplitLargeQuads),
+            onOff(LslConfig.voxyCtm), LslConfig.voxyCtmRepeat,
+            Platform.TINT_MATCHING ? onOff(LslConfig.voxyMatchTints) : "not available here", onOff(LslConfig.voxyFlatLayers),
             onOff(LslConfig.voxyPlantOffset),
             LslConfig.voxyPlantOffset && !ShaderPatch.usable() ? " (shader anchors missing!)" : "",
             onOff(VoxyGate.groundPlants()), onOff(LslConfig.voxyDrawPlants), LslConfig.voxyPlantFaceInset, onOff(LslConfig.voxyTallPlants),

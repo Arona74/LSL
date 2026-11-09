@@ -3,6 +3,7 @@ package io.arona74.lsl.mixin.voxy;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
+import io.arona74.lsl.voxy.CtmAverage;
 import io.arona74.lsl.voxy.CtmBake;
 import io.arona74.lsl.voxy.ExtBlades;
 import io.arona74.lsl.voxy.PlantLook;
@@ -37,7 +38,7 @@ public abstract class SoftwareModelTextureBakeryMixin {
         target = "Lnet/minecraft/client/renderer/block/dispatch/BlockStateModel;collectParts(Lnet/minecraft/util/RandomSource;Ljava/util/List;)V"))
     private void lsl$connectedTextures(BlockStateModel model, RandomSource random, List<BlockStateModelPart> out,
                                        Operation<Void> original, @Local(argsOnly = true) BlockState state) {
-        if (CtmBake.handles(model)) CtmBake.collect(model, state, random, out);
+        if (CtmAverage.handles(model)) CtmBake.collect(model, state, random, out);
         else original.call(model, random, out);
     }
 
@@ -51,10 +52,10 @@ public abstract class SoftwareModelTextureBakeryMixin {
 
     @Inject(method = "renderToOutput", at = @At("RETURN"), cancellable = true)
     private void lsl$plantLook(BlockState state, long outputBuffer, CallbackInfoReturnable<Integer> cir) {
-        CtmBake.AverageRequest average = CtmBake.takeAverageRequest();
+        CtmAverage.AverageRequest average = CtmAverage.takeAverageRequest();
         if (average != null) {
             SoftwareModelTextureBakery self = (SoftwareModelTextureBakery) (Object) this;
-            CtmBake.average((s, out) -> self.renderToOutput(s, out), state, outputBuffer, average);
+            CtmAverage.average((s, out) -> self.renderToOutput(s, out), state, outputBuffer, average);
         }
         int flags = cir.getReturnValue();
         int adjusted = PlantLook.applyLayer(state, PlantLook.apply(state, outputBuffer, flags));

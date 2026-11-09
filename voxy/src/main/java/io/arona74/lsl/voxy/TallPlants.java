@@ -5,12 +5,9 @@ import io.arona74.lsl.LslConfig;
 import io.arona74.lsl.mixin.voxy.RenderDataFactoryInvoker;
 import me.cortex.voxy.client.core.model.ModelFactory;
 import me.cortex.voxy.common.world.other.Mapper;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.core.Direction;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.levelgen.SingleThreadedRandomSource;
 import org.joml.Vector3f;
 import org.joml.Vector3fc;
 
@@ -78,18 +75,13 @@ public final class TallPlants {
     private static float[] measure(BlockState state) {
         if (dry(state) == null) return NOT_TALL;
         try {
-            var model = Minecraft.getInstance().getBlockRenderer().getBlockModel(state);
             float top = 0, minX = Float.MAX_VALUE, maxX = -Float.MAX_VALUE, minZ = Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
-            {
-                for (Direction d : DIRECTIONS) {
-                    for (BakedQuad quad : model.getQuads(state, d, new SingleThreadedRandomSource(42L))) {
-                        for (int v = 0; v < 4; v++) {
-                            Vector3fc p = QuadData.position(quad, v);
-                            top = Math.max(top, p.y());
-                            minX = Math.min(minX, p.x()); maxX = Math.max(maxX, p.x());
-                            minZ = Math.min(minZ, p.z()); maxZ = Math.max(maxZ, p.z());
-                        }
-                    }
+            for (BakedQuad quad : VoxyMc.blockQuads(state)) {
+                for (int v = 0; v < 4; v++) {
+                    Vector3fc p = VoxyMc.position(quad, v);
+                    top = Math.max(top, p.y());
+                    minX = Math.min(minX, p.x()); maxX = Math.max(maxX, p.x());
+                    minZ = Math.min(minZ, p.z()); maxZ = Math.max(maxZ, p.z());
                 }
             }
             int slices = Math.max(0, Math.min(MAX_SLICES, (int) Math.floor(top - 0.5f)));
@@ -98,10 +90,6 @@ public final class TallPlants {
             return NOT_TALL;
         }
     }
-
-    private static final Direction[] DIRECTIONS = {
-        Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST, null
-    };
 
     /** The state a slice bakes: the plant without its water (a slice is in the air above it). Null if it can't. */
     static BlockState dry(BlockState state) {
@@ -133,8 +121,8 @@ public final class TallPlants {
         List<BakedQuad> out = new ArrayList<>(quads.size());
         for (BakedQuad q : quads) {
             Vector3fc[] moved = new Vector3fc[4];
-            for (int v = 0; v < 4; v++) moved[v] = move(QuadData.position(q, v), slice, cx, cz, scale);
-            out.add(QuadData.with(q, moved, null, null));
+            for (int v = 0; v < 4; v++) moved[v] = move(VoxyMc.position(q, v), slice, cx, cz, scale);
+            out.add(VoxyMc.with(q, moved, null, null));
         }
         return out;
     }
