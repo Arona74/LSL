@@ -75,7 +75,7 @@
   "config.lsl.option.voxy_plant_face_inset": "Plant Face Inset",
   "config.lsl.option.voxy_plant_face_inset.desc": "How far into its block, at least, Voxy draws each side of a plant. Voxy draws a plant as flat pictures, one per side, placed at the plant's outermost pixel; Conquest Reforged's plants reach almost to the block edge, so the pictures sat right against the sides of neighbouring layers and flickered against them. 0 leaves Voxy's placement; 0.25 is a quarter block.",
   "config.lsl.option.voxy_tall_plants": "Full Height Tall Plants",
-  "config.lsl.option.voxy_tall_plants.desc": "Draws plants whose model is taller than their block, such as Conquest Reforged's reeds and cattails, at their full height in the nearest LODs. Voxy fits every block into its own cell, so otherwise only their bottom block shows. Farther LODs still show the bottom part only.",
+  "config.lsl.option.voxy_tall_plants.desc": "Draws plants whose model is taller than their block, such as Conquest Reforged's reeds and cattails, at their full height in every LOD. Voxy fits every block into its own cell, so otherwise only their bottom block shows, stretched in farther LODs.",
   "config.lsl.option.voxy_plant_shading": "Shade Plants",
   "config.lsl.option.voxy_plant_shading.desc": "Plant models are usually unshaded (Conquest Reforged's dense grass included), so Voxy draws them at full brightness while the game, near you, draws them much darker. With this on, Voxy shades plants by side like other blocks (sides at 80% and 60%), which darkens distant grass and flowers.",
   "config.lsl.option.voxy_plant_shading_with_shaders": "Shade Plants With Shaders",

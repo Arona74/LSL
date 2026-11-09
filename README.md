@@ -125,7 +125,10 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   block ids counting down from `(1 << 20) - 1`. They exist only in the mesh, never in Voxy's world
   data. Bake requests for slice ids are queued by `ModelBakerySubsystemMixin` (Voxy rejects ids beyond
   the mapper), once per id. The model is also squeezed sideways into the cell, and a slice counts only
-  if the model reaches half way into that block.
+  if the model reaches half way into that block. Past LOD0 a cell is 2^L blocks and Voxy stretches the
+  1-block model to fill it (a reed looked 2 blocks tall at LOD1): the plant's cell gets the model
+  squeezed down by 2^L instead (its own slice ids per level), and at LOD1 the cell above gets the rest
+  of a 3-4 block plant.
 - **Plant look** (`PlantLook`): `voxy_draw_plants` (leave plants out of the LODs),
   `voxy_plant_shading` (Voxy's side shading on plants, off by default; skipped under shaderpacks
   unless `voxy_plant_shading_with_shaders`), `voxy_plant_brightness` (with shading only) and
@@ -266,7 +269,8 @@ The repo lives under OneDrive. Check the jar's timestamp before testing (see Aro
 
 - One look per block state: no per-position variation (random textures and repeat patterns are
   averaged or use the base texture; colours are one per biome, taken at Y 72).
-- Tall plants are full height at LOD0 only; a block above the plant stops it there.
+- Tall plants: a block above the plant stops it there. Past LOD0, Voxy's mip keeps a plant only where
+  nothing more opaque shares its cell, as for any plant.
 - Grounding of ordinary plants only looks inside the 32-block Voxy section. CR plants don't need a
   neighbour, so they're always lowered.
 - Waterlogged plants aren't lowered: the fluid quad shares the word and would sink too.
@@ -277,6 +281,5 @@ The repo lives under OneDrive. Check the jar's timestamp before testing (see Aro
 
 ## Roadmap
 
-- Tall plants beyond LOD0.
 - Other MC versions for the Voxy side, following the module ladder; gate per Voxy build after diffing
   the hooked code.

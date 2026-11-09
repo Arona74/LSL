@@ -82,11 +82,21 @@ public final class BlockTables {
     private final Map<Integer, Integer> slices = new ConcurrentHashMap<>();
     private final BlockState[] sliceStates = new BlockState[SLICE_LIMIT];
     private final int[] sliceLevels = new int[SLICE_LIMIT];
+    private final int[] sliceScales = new int[SLICE_LIMIT];
     private volatile int sliceCount;
 
-    /** The block id standing for slice {@code k} (1-3) of {@code blockId}; -1 when out of ids. */
+    /** The block id standing for slice {@code k} (1-3) of {@code blockId} at LOD0; -1 when out of ids. */
     public int slice(int blockId, int k) {
-        Integer key = (blockId << 2) | k;
+        return slice(blockId, 0, k);
+    }
+
+    /**
+     * The block id standing for part {@code k} of {@code blockId} at LOD level {@code lod}: the model
+     * squeezed down by 2^lod (so one cell of that level holds 2^lod blocks of plant), moved {@code k}
+     * cells down. -1 when out of ids.
+     */
+    public int slice(int blockId, int lod, int k) {
+        Integer key = (blockId << 5) | (lod << 2) | k;
         Integer id = this.slices.get(key);
         if (id != null) return id;
         synchronized (this.slices) {
@@ -104,6 +114,7 @@ public final class BlockTables {
             }
             this.sliceStates[n] = state;
             this.sliceLevels[n] = k;
+            this.sliceScales[n] = lod;
             this.sliceCount = n + 1;
             this.slices.put(key, SLICE_TOP - n);
             return SLICE_TOP - n;
@@ -120,9 +131,14 @@ public final class BlockTables {
         return this.sliceStates[SLICE_TOP - blockId];
     }
 
-    /** How many blocks down a slice id's model is moved. */
+    /** How many cells down a slice id's model is moved. */
     public int sliceLevel(int blockId) {
         return isSlice(blockId) ? this.sliceLevels[SLICE_TOP - blockId] : 0;
+    }
+
+    /** The LOD level a slice id is squeezed for (its model is 2^level times lower), 0 for LOD0. */
+    public int sliceScale(int blockId) {
+        return isSlice(blockId) ? this.sliceScales[SLICE_TOP - blockId] : 0;
     }
 
     public static int selfShift(int info) {

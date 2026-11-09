@@ -19,8 +19,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * After the mesher has turned the section's ids into partial quad words (LOD0 only): writes each
- * plant's drop into them (PlantShift), then adds the upper slices of tall plants (TallPlants).
+ * After the mesher has turned the section's ids into partial quad words: writes each plant's drop
+ * into them (PlantShift, LOD0 only), then adds the parts of tall plants (TallPlants, every level).
  */
 @Mixin(value = RenderDataFactory.class, remap = false)
 public abstract class RenderDataFactoryMixin {
@@ -39,19 +39,21 @@ public abstract class RenderDataFactoryMixin {
     @Inject(method = "prepareSectionData", at = @At("RETURN"), cancellable = true)
     private void lsl$plants(long[] rawSectionData, CallbackInfoReturnable<Integer> cir) {
         WorldSection section = this.lsl$section;
-        if (section == null || section.lvl != 0) return;
+        if (section == null) return;
+        int lod = section.lvl;
+        if (lod != 0 && !LslConfig.voxyTallPlants) return;
         int result = cir.getReturnValue();
         if (result < 0) return; // a model is not baked yet: Voxy retries the section
         BlockTables tables = BlockTables.of(this.world.getMapper());
-        boolean shift = LslConfig.voxyPlantOffset && ShaderPatch.usable();
+        boolean shift = lod == 0 && LslConfig.voxyPlantOffset && ShaderPatch.usable();
         if (shift) PlantShift.apply(rawSectionData, this.sectionData, tables);
         if (!LslConfig.voxyTallPlants) return;
 
         WorldSection under = null;
         try {
-            under = this.world.acquireIfExists(0, section.x, section.y - 1, section.z);
+            under = this.world.acquireIfExists(lod, section.x, section.y - 1, section.z);
             long[] below = under != null ? under._unsafeGetRawDataArray() : null;
-            int extra = TallPlants.apply(rawSectionData, below, this.sectionData, this.nonOpaqueMasks,
+            int extra = TallPlants.apply(lod, rawSectionData, below, this.sectionData, this.nonOpaqueMasks,
                 this.modelMan._unsafeRawAccess(), this.modelMan, tables, shift);
             if (extra != 0) cir.setReturnValue(extra < 0 ? extra : result | extra);
         } finally {

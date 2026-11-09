@@ -16,7 +16,8 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 
 /**
  * Lets Voxy bake tall-plant slices (TallPlants): a slice id is not the mapper's, so its state comes
- * from LSL's table, and while its bake runs the bakery is told which slice to move down.
+ * from LSL's table, and while its bake runs the bakery is told which slice to move down and, past
+ * LOD0, how much to squeeze it.
  */
 @Mixin(value = ModelFactory.class, remap = false)
 public abstract class ModelFactorySliceMixin {
@@ -34,9 +35,13 @@ public abstract class ModelFactorySliceMixin {
         target = "Ljava/util/concurrent/ConcurrentLinkedDeque;poll()Ljava/lang/Object;"))
     private Object lsl$sliceBake(ConcurrentLinkedDeque<?> queue, Operation<Object> original) {
         Object bake = original.call(queue);
-        int slice = 0;
-        if (bake instanceof BlockBakeAccessor b) slice = BlockTables.of(this.mapper).sliceLevel(b.lsl$blockId());
-        TallPlants.setBaking(slice);
+        int slice = 0, lod = 0;
+        if (bake instanceof BlockBakeAccessor b) {
+            BlockTables tables = BlockTables.of(this.mapper);
+            slice = tables.sliceLevel(b.lsl$blockId());
+            lod = tables.sliceScale(b.lsl$blockId());
+        }
+        TallPlants.setBaking(slice, lod);
         return bake;
     }
 }
