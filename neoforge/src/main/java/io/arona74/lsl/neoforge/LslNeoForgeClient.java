@@ -14,7 +14,8 @@ import net.neoforged.neoforge.common.NeoForge;
 
 /**
  * Client side: the config screen behind the mod list's Config button, and the {@code /lsl} client
- * command ({@code config}, and {@code dh} when Distant Horizons is installed).
+ * command ({@code config}, {@code dh} when Distant Horizons is installed, {@code voxy} when the Voxy
+ * hooks are on).
  */
 final class LslNeoForgeClient {
     private LslNeoForgeClient() {}
@@ -30,7 +31,9 @@ final class LslNeoForgeClient {
                     ScreenCompat.schedule(() -> ScreenCompat.setScreen(new LslConfigScreen(null)));
                     return 1;
                 }));
-            if (dh) root.then(DhCommand.<CommandSourceStack>node((source, line) -> source.sendSuccess(() -> Component.literal(line), false)));
+            java.util.function.BiConsumer<CommandSourceStack, String> send = (source, line) -> source.sendSuccess(() -> Component.literal(line), false);
+            if (dh) root.then(DhCommand.<CommandSourceStack>node(send));
+            if (io.arona74.lsl.voxy.VoxyGate.active()) root.then(io.arona74.lsl.voxy.VoxyCommand.<CommandSourceStack>node(send));
             event.getDispatcher().register(root);
         });
     }

@@ -33,8 +33,8 @@ public final class Platform {
      * update can move what LSL hooks: only checked Roxy builds.
      */
     static final VoxyGate.Bridge BRIDGE = new VoxyGate.Bridge("roxy", "Roxy", new String[]{"0.4.1"});
-    /** Polytone tint matching (TintCapture) isn't ported to this module yet. */
-    static final boolean TINT_MATCHING = false;
+    /** Polytone tint matching (TintCapture) is ported to this module. */
+    static final boolean TINT_MATCHING = true;
 
     // ========== Loader ==========
 

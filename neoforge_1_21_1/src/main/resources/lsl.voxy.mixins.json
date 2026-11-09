@@ -6,6 +6,7 @@
   "compatibilityLevel": "JAVA_21",
   "client": [
     "voxy.BlockBakeAccessor",
+    "voxy.BlockColorsAccessor",
     "voxy.MipperMixin",
     "voxy.ModelBakerySubsystemMixin",
     "voxy.ModelFactorySliceMixin",
@@ -13,6 +14,7 @@
     "voxy.ModelDepthMixin",
     "voxy.ModelFactoryMixin",
     "voxy.ModelStoreMixin",
+    "voxy.ModelTintMixin",
     "voxy.SoftwareModelTextureBakeryMixin",
     "voxy.RenderDataFactoryMixin",
     "voxy.ShaderLoadingParserMixin"
