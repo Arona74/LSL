@@ -29,6 +29,7 @@ height, the slopes are smooth, and the grass keeps Conquest's colours.*
 *A Conquest Reforged valley in Voxy's LODs. Without LSL (left), the layered ground rounds up into
 whole-block steps. With LSL (right), the meadows keep their layer heights, and the grass and trees
 keep Conquest's colours.*
+
 *An experimental feature, OFF by default, have been added, it is named **LOD shadows**.
 Providing shaders shadows (Bliss-unstable-june-3 only) to voxy LODs drawn between the render distance and the bliss shadowmap distance.*
 
