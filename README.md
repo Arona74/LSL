@@ -24,10 +24,13 @@ block, so the meadows climb in sharp whole-block steps. With LSL (right), the la
 height, the slopes are smooth, and the grass keeps Conquest's colours.*
 
 ![A Conquest Reforged valley in Voxy's LODs, without LSL (left) and with LSL (right)](images/voxy_conquest.jpg)
+![A Conquest Reforged valley in Voxy's LODs, without LSL (left) and with LSL and LOD shadows enabled (right)](images/voxy_conquest_shadows.jpg)
 
 *A Conquest Reforged valley in Voxy's LODs. Without LSL (left), the layered ground rounds up into
 whole-block steps. With LSL (right), the meadows keep their layer heights, and the grass and trees
 keep Conquest's colours.*
+*An experimental feature, OFF by default, have been added, it is named **LOD shadows**.
+Providing shaders shadows (Bliss-unstable-june-3 only) to voxy LODs drawn between the render distance and the bliss shadowmap distance.*
 
 Each part stays idle when its LOD mod is absent. Runs on both sides: DH also builds LODs on servers.
 
