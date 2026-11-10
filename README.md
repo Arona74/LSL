@@ -180,7 +180,7 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   orthographic projection) and squeezes depth by 6 (folded into the view's projection, so the
   traversal culls with the deeper box too); AUTO picks Bliss by the pack name in `iris.properties`.
   Limits: only as far as the pack's shadow distance; Voxy picks a section's faces from the
-  player's position, not the sun's; Bliss's world curvature is not applied. Builds against Sodium 0.9.1 (`libs/sodium-fabric-0.9.1+mc26.1.2.jar`, compile-only).
+  player's position, not the sun's; Bliss's world curvature is deliberately not applied (Voxy terrain is drawn flat, so flat LOD casters match it). Builds against Sodium 0.9.1 (`libs/sodium-fabric-0.9.1+mc26.1.2.jar`, compile-only).
 
 ### Colours and textures
 

@@ -52,7 +52,9 @@ import static org.lwjgl.opengl.GL43C.*;
  *
  * <p>Known limits: Voxy chooses which faces of a section to draw from the camera position (the
  * player), not the sun, so a shadow can lose a sliver where the sun is low. Bliss's world curvature
- * (CURVATURE_AMOUNT) is not applied to the LODs.
+ * (CURVATURE_AMOUNT) is deliberately not applied: Bliss curves its shadow casters to match the
+ * curved vanilla terrain, but the Voxy pack interface has no vertex hook, so Voxy terrain is drawn
+ * flat and flat LOD casters are what match it.
  */
 public final class VoxyShadows {
     private VoxyShadows() {}
