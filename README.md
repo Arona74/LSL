@@ -1,5 +1,9 @@
 # LSL - Layer Supported LOD
 
+> [!WARNING]
+> **This mod is AI-generated.** All of its code, these instructions and its config descriptions were written by
+> Claude (an AI made by Anthropic), directed and tested in game by one person.
+
 Layers drawn right in LOD renderers, for worlds built from partial-height layers (AronaLayers-gen,
 Conquest Reforged):
 
