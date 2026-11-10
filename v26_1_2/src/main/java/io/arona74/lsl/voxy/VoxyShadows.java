@@ -70,6 +70,7 @@ public final class VoxyShadows {
     private static final int MODE_LOCATION = 11;
     private static final int DISTORT_A_LOCATION = 12;
     private static final int DISTORT_B_LOCATION = 13;
+    private static final int FADE_LOCATION = 14;
     /** Iris's selected pack decides AUTO; read again whenever Voxy rebuilds its pipeline (a pack switch does). */
     private static boolean packIsBliss;
 
@@ -79,7 +80,9 @@ public final class VoxyShadows {
         layout(location = 0) in flat uvec4 interData;
         layout(location = 1) in vec2 uv;
         layout(location = 6) in vec3 lslRel;
+        layout(location = 8) in vec2 lslClip;
         layout(location = 10) uniform float lslInnerRadius;
+        layout(location = 14) uniform float lslFade;
 
         vec2 getBaseUV() {
             uint face = (interData.x>>4)&7u;
@@ -90,6 +93,13 @@ public final class VoxyShadows {
 
         void main() {
             if (dot(lslRel.xz, lslRel.xz) < lslInnerRadius*lslInnerRadius) discard;
+            if (lslFade > 0.0) {
+                // Thinned out towards the edge of the shadow box, in a per-texel dither the pack's
+                // soft shadow filter blurs into a gradient (interleaved gradient noise).
+                float lslEdge = max(abs(lslClip.x), abs(lslClip.y));
+                float lslKeep = 1.0 - smoothstep(1.0 - lslFade, 1.0, lslEdge);
+                if (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) >= lslKeep) discard;
+            }
             vec2 tile;
             vec2 uv2 = modf(uv, tile)*(1.0/(vec2(3.0,2.0)*256.0));
             if (any(notEqual(clamp(tile, vec2(0), vec2((interData.x>>8)&0xFu, (interData.x>>12)&0xFu)), tile))) discard;
@@ -179,6 +189,7 @@ public final class VoxyShadows {
         shader.bind();
         glUniform1f(RADIUS_LOCATION, Minecraft.getInstance().options.getEffectiveRenderDistance() * 16.0f);
         glUniform1i(MODE_LOCATION, bliss ? 1 : 0);
+        glUniform1f(FADE_LOCATION, (float) Math.max(0.0, Math.min(0.5, LslConfig.voxyShadowFade)));
         if (bliss) {
             // Bliss's Shadow_Params.glsl. Iris's shadow projection is an orthographic box whose half
             // width is the shadow distance, which Bliss's d0 depends on.
@@ -216,6 +227,7 @@ public final class VoxyShadows {
         vertex = vertex.replace(output, output + """
 
                 layout(location = 6) out vec3 lslRel;
+                layout(location = 8) out vec2 lslClip;
                 layout(location = 11) uniform int lslShadowMode;
                 layout(location = 12) uniform float lslDistortA;
                 layout(location = 13) uniform float lslDistortB;
@@ -227,6 +239,8 @@ public final class VoxyShadows {
                     vec3 lslPoint = quad.basePoint + swizzelDataAxis(quad.axis, vec3(quad.quadSizeAddin*lslMask, 0));
                     lslRel = lslPoint - cameraSubPos;
                 }
+                // Position in the undistorted shadow box (orthographic: w is 1), for the edge fade.
+                lslClip = gl_Position.xy / gl_Position.w;
                 if (lslShadowMode == 1) {
                     // Bliss's BiasShadowProjection (its depth squeeze is in the projection already).
                     gl_Position.xy /= log(length(gl_Position.xy) * lslDistortB + lslDistortA) * 1.8;

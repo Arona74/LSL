@@ -186,6 +186,11 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   (Complementary, BSL, Sildur's...) distort their shadow map in their own way, and with PLAIN the
   LOD shadows land in the wrong spots (typically one large straight-edged shadow). Each further pack
   needs its own projection mode, copied from its `shadow.vsh`.
+  The shadow map ends at the pack's shadow distance, a square around the player as the sun sees
+  it, and this Bliss build has its own fade there commented out, so LOD shadows stopped dead at
+  that square. `voxy_shadow_fade` thins the LOD casters out over the outer part of the box
+  (Chebyshev distance in the undistorted shadow clip space) with a per-texel dither that Bliss's
+  soft shadow filter blurs into a gradient.
   Limits: only as far as the pack's shadow distance; Voxy picks a section's faces from the
   player's position, not the sun's; Bliss's world curvature is deliberately not applied (Voxy terrain is drawn flat, so flat LOD casters match it). Builds against Sodium 0.9.1 (`libs/sodium-fabric-0.9.1+mc26.1.2.jar`, compile-only).
 
@@ -280,6 +285,7 @@ those options are read at bake time. "Restart" options decide which mixins or sh
 | `voxy_leaf_brightness` | `1.3` (0.3 to 1.5) | rejoin |
 | `voxy_shadows` (advanced, experimental) | `false` | restart |
 | `voxy_shadow_projection` (advanced) | `AUTO` (AUTO, PLAIN, BLISS) | live |
+| `voxy_shadow_fade` (advanced) | `0.1` (0 to 0.5) | live |
 
 On the first start, the `dh_*` values are copied from AronaLayers-gen's
 `config/aronalayersgen/layer_config.json` when it exists. Adding an option means one `add(...)` in

@@ -93,6 +93,7 @@ public final class LslConfig {
     public static double voxyLeafBrightness;
     public static boolean voxyShadows;
     public static ShadowProjection voxyShadowProjection;
+    public static double voxyShadowFade;
 
     private static Path configDir;
     private static boolean loaded;
@@ -194,6 +195,8 @@ public final class LslConfig {
             .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.RESTART).advanced());
     static {
         add(choice("voxy_shadow_projection", ShadowProjection.AUTO, () -> voxyShadowProjection, v -> voxyShadowProjection = v)
+                .in(ConfigTab.VOXY, "lod").requires(O_VOXY_SHADOWS).mods(VOXY).apply(Apply.LIVE).advanced());
+        add(decimal("voxy_shadow_fade", 0.1, 0.0, 0.5, 0.05, () -> voxyShadowFade, v -> voxyShadowFade = v)
                 .in(ConfigTab.VOXY, "lod").requires(O_VOXY_SHADOWS).mods(VOXY).apply(Apply.LIVE).advanced());
     }
 
