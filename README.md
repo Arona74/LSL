@@ -179,6 +179,13 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   Bliss distorts the map (`BiasShadowProjection`, its `d0` from the shadow distance, read off the
   orthographic projection) and squeezes depth by 6 (folded into the view's projection, so the
   traversal culls with the deeper box too); AUTO picks Bliss by the pack name in `iris.properties`.
+  **Only the Bliss build shipped with Conquest Reforged (`Bliss-Shader-Unstable-June-3`) is
+  supported so far.** Other Bliss builds change their shadow code: a more recent Bliss gave
+  different results, and AUTO still picks BLISS for it, since it only matches the name. The pass
+  itself works with any pack, but most packs
+  (Complementary, BSL, Sildur's...) distort their shadow map in their own way, and with PLAIN the
+  LOD shadows land in the wrong spots (typically one large straight-edged shadow). Each further pack
+  needs its own projection mode, copied from its `shadow.vsh`.
   Limits: only as far as the pack's shadow distance; Voxy picks a section's faces from the
   player's position, not the sun's; Bliss's world curvature is deliberately not applied (Voxy terrain is drawn flat, so flat LOD casters match it). Builds against Sodium 0.9.1 (`libs/sodium-fabric-0.9.1+mc26.1.2.jar`, compile-only).
 
