@@ -38,6 +38,10 @@ stands a block too high wherever a layer lies.
   of a block, per 64x64 section. They also patch DH's terrain shader, and Iris's DH shader when a
   shader pack is on. The eighths ride in colour bits by default (`dh_exact_layers_color_bits`), so
   dimensions up to DH's 4096-block limit work; without colour bits the limit is 512 blocks.
+  Shader packs that snap DH vertices to the block grid (Bliss does, on part of the position) are
+  rewritten to keep the eighths. With `dh_layer_sides`, the top of the block under each layer
+  takes the layer's colour, so a slope's small steps show a block's worth of layer on their sides
+  (as full-block layers did) instead of a sliver over dirt, which made distant slopes brown.
 - **Rounding** (`dh_layer_rounding`, any recent DH, public API only): a layer of
   `dh_layer_rounding_threshold` eighths or more shows as its full block, a thinner one as nothing
   (water when waterlogged).
@@ -198,6 +202,7 @@ those options are read at bake time. "Restart" options decide which mixins or sh
 | Key | Default | Applies |
 |---|---|---|
 | `dh_exact_layers` | `true` | restart |
+| `dh_layer_sides` | `true` | restart |
 | `dh_exact_layers_color_bits` (advanced) | `true` | restart |
 | `dh_layer_rounding` | `true` | new DH LODs |
 | `dh_layer_rounding_threshold` | `4` (1-8) | new DH LODs |

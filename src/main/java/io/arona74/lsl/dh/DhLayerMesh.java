@@ -31,6 +31,7 @@ import com.seibel.distanthorizons.core.pos.DhSectionPos;
 import com.seibel.distanthorizons.core.pos.blockPos.DhBlockPosMutable;
 import com.seibel.distanthorizons.core.util.FullDataPointUtil;
 import com.seibel.distanthorizons.core.util.RenderDataPointUtil;
+import io.arona74.lsl.LslConfig;
 import com.seibel.distanthorizons.core.wrapperInterfaces.IWrapperFactory;
 import com.seibel.distanthorizons.core.wrapperInterfaces.block.IBlockStateWrapper;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.IBiomeWrapper;
@@ -216,7 +217,7 @@ public final class DhLayerMesh {
                     nativeCount++;
                 }
 
-                collectCaps(work, full, x, z, nativeData, offset, nativeCount);
+                collectCaps(work, full, x, z, nativeData, offset, nativeCount, nativePalette);
 
                 if (work.count == 0) {
                     for (int i = 0; i < nativeCount; i++) {
@@ -268,7 +269,8 @@ public final class DhLayerMesh {
     }
 
     /** The visible partial layers of one column, top down, into {@code work}. */
-    private static void collectCaps(Work work, FullDataSourceV2 full, int x, int z, long[] nativeData, int offset, int nativeCount) {
+    private static void collectCaps(Work work, FullDataSourceV2 full, int x, int z, long[] nativeData, int offset, int nativeCount,
+                                    short[] nativePalette) {
         work.count = 0;
         LongArrayList column = full.getColumnAtRelPos(x, z);
         if (nativeCount == 0 || column == null) return;
@@ -312,7 +314,14 @@ public final class DhLayerMesh {
                     }
                 }
             }
-            work.append(y, value, layer, snowValue, snow, RenderDataPointUtil.getColor(visible));
+            // DH's own look for this block: its colour, and the texture and material that go with
+            // it. Both can come from a plant on top (DH colours the block under a plant like the
+            // plant), so they are not the layer's own and certainly not its full block's: a full
+            // grass block's texture has dirt sides, which turned every small step brown.
+            short texture = work.source.hasTextureSetIds()
+                ? nativePalette[Byte.toUnsignedInt(work.source.textureSetPaletteIndices.getByte(offset + visibleIndex))] : 0;
+            work.append(y, value, layer, snowValue, snow, RenderDataPointUtil.getColor(visible), texture,
+                RenderDataPointUtil.getBlockMaterialId(visible));
         }
     }
 
@@ -367,8 +376,12 @@ public final class DhLayerMesh {
             // DH already coloured this block's own segment, biome blending included: reuse it.
             // A full getBlockColor per cap (thousands per section) ran on DH's worker threads and
             // cut LOD generation speed by about five.
-            int color = work.colors[i] != 0 ? work.colors[i] | 0xFF000000
+            boolean nativeLook = work.colors[i] != 0;
+            int color = nativeLook ? work.colors[i] | 0xFF000000
                 : level.getBlockColor(work.position, layer.biome, full, layer.appearance) | 0xFF000000;
+            short texture = nativeLook ? work.textures[i] : layer.texture;
+            byte material = nativeLook ? work.materials[i] : layer.material;
+            work.capTextures[i] = texture;
 
             if (layer.wet) {
                 work.water();
@@ -388,19 +401,58 @@ public final class DhLayerMesh {
                     FullDataPointUtil.getBlockLight(snowValue), EDhApiBlockMaterial.SNOW.index), snow.texture, top, snowTop);
             }
 
-            caps.add(point(bottom, top, color, sky, light, layer.material), layer.texture, bottom, top);
+            long cap = point(bottom, top, color, sky, light, material);
+            work.capPoints[i] = cap;
+            caps.add(cap, texture, bottom, top);
         }
 
+        LongColumn natives = LslConfig.dhLayerSides ? paintSides(work, remaining) : remaining;
         int a = 0, b = 0;
-        while (a < remaining.size || b < caps.size) {
+        while (a < natives.size || b < caps.size) {
             boolean takeNative = b == caps.size
-                || a < remaining.size && yMax8(remaining.data[a]) >= yMax8(caps.data[b]);
-            LongColumn input = takeNative ? remaining : caps;
+                || a < natives.size && yMax8(natives.data[a]) >= yMax8(caps.data[b]);
+            LongColumn input = takeNative ? natives : caps;
             int index = takeNative ? a++ : b++;
             long value = input.data[index];
             result.add(value, input.textures[index], yMin8(value), yMax8(value));
         }
         return result;
+    }
+
+    /**
+     * dh_layer_sides: the top of the opaque segment right under each dry cap, from one block below
+     * the cap's top down to the cap, takes the cap's look (colour, material, texture, light). Each
+     * step of a slope then shows a block's worth of layer on its side, as when DH drew the layer as
+     * a full block, instead of a sliver of layer over the block below (dirt, mostly), which turned
+     * distant grassy slopes brown. The heights are untouched.
+     */
+    private static LongColumn paintSides(Work work, LongColumn remaining) {
+        LongColumn out = work.sides;
+        out.size = 0;
+        for (int r = 0; r < remaining.size; r++) {
+            long value = remaining.data[r];
+            short texture = remaining.textures[r];
+            int min = yMin8(value);
+            int max = yMax8(value);
+            int cap = RenderDataPointUtil.getAlpha(value) == 255 ? capOn(work, max) : -1;
+            if (cap < 0) {
+                out.add(value, texture, min, max);
+                continue;
+            }
+            LayerInfo layer = work.layers[cap];
+            int sideBottom = Math.max(min, max - (8 - layer.eighths));
+            out.add(work.capPoints[cap], work.capTextures[cap], sideBottom, max);
+            out.add(value, texture, min, sideBottom);
+        }
+        return out;
+    }
+
+    /** The dry cap whose bottom is at eighth-unit {@code y}, or -1. */
+    private static int capOn(Work work, int y) {
+        for (int i = 0; i < work.count; i++) {
+            if (!work.layers[i].wet && work.bottoms[i] * 8 == y) return i;
+        }
+        return -1;
     }
 
     /** More vertical slots per column: caps add segments. */
@@ -492,8 +544,15 @@ public final class DhLayerMesh {
         final LongColumn remaining = new LongColumn();
         final LongColumn caps = new LongColumn();
         final LongColumn result = new LongColumn();
+        final LongColumn sides = new LongColumn();
         int[] bottoms = new int[16];
         long[] values = new long[16];
+        /** Each cap's render point (mergeCaps), for paintSides. */
+        long[] capPoints = new long[16];
+        short[] capTextures = new short[16];
+        /** DH's own texture and material for each cap's block (collectCaps). */
+        short[] textures = new short[16];
+        byte[] materials = new byte[16];
         long[] snowValues = new long[16];
         LayerInfo[] layers = new LayerInfo[16];
         LayerInfo[] snows = new LayerInfo[16];
@@ -538,12 +597,17 @@ public final class DhLayerMesh {
             return infos[id] = info;
         }
 
-        void append(int bottom, long value, LayerInfo layer, long snowValue, LayerInfo snow, int nativeColor) {
+        void append(int bottom, long value, LayerInfo layer, long snowValue, LayerInfo snow, int nativeColor,
+                    short nativeTexture, byte nativeMaterial) {
             if (count == bottoms.length) {
                 int size = count * 2;
                 colors = Arrays.copyOf(colors, size);
                 bottoms = Arrays.copyOf(bottoms, size);
                 values = Arrays.copyOf(values, size);
+                capPoints = Arrays.copyOf(capPoints, size);
+                capTextures = Arrays.copyOf(capTextures, size);
+                textures = Arrays.copyOf(textures, size);
+                materials = Arrays.copyOf(materials, size);
                 snowValues = Arrays.copyOf(snowValues, size);
                 layers = Arrays.copyOf(layers, size);
                 snows = Arrays.copyOf(snows, size);
@@ -554,6 +618,8 @@ public final class DhLayerMesh {
             snowValues[count] = snowValue;
             snows[count] = snow;
             colors[count] = nativeColor;
+            textures[count] = nativeTexture;
+            materials[count] = nativeMaterial;
             count++;
         }
 

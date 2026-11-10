@@ -64,6 +64,7 @@ public final class LslConfig {
     // Values. No initializers: the option defaults set them (see loadConfig).
     public static boolean dhExactLayers;
     public static boolean dhExactLayersColorBits;
+    public static boolean dhLayerSides;
     public static boolean dhLayerRounding;
     public static int dhLayerRoundingThreshold;
     public static boolean voxyLayerMip;
@@ -104,6 +105,9 @@ public final class LslConfig {
             () -> dhExactLayers, v -> dhExactLayers = v)
             .in(ConfigTab.DISTANT_HORIZONS, "exact").mods(DH).side(Side.BOTH).apply(Apply.RESTART));
     static {
+        add(bool("dh_layer_sides", true, () -> dhLayerSides, v -> dhLayerSides = v)
+                .in(ConfigTab.DISTANT_HORIZONS, "exact").requires(O_DH_EXACT_LAYERS).mods(DH)
+                .side(Side.CLIENT).apply(Apply.RESTART));
         add(bool("dh_exact_layers_color_bits", true, () -> dhExactLayersColorBits, v -> dhExactLayersColorBits = v)
                 .in(ConfigTab.DISTANT_HORIZONS, "exact").requires(O_DH_EXACT_LAYERS).mods(DH)
                 .side(Side.CLIENT).apply(Apply.RESTART).advanced());

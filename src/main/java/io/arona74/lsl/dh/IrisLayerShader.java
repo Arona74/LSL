@@ -28,7 +28,9 @@ public final class IrisLayerShader {
     private static final String MARKER = "/* lsl fractional DH input */";
     private static final Pattern POSITION = Pattern.compile("(_vert_position\\s*=\\s*)([^;]+)(;)");
     private static final Pattern MAIN = Pattern.compile("\\bvoid\\s+main\\s*\\(\\s*(?:void\\s*)?\\)\\s*\\{");
-    private static final Pattern ASSIGNMENT = Pattern.compile("(?<![\\w.])(?:(vec[34])\\s+)?([A-Za-z_]\\w*)\\s*=(?!=)\\s*([^;]+);");
+    /** {@code [vecN] name[.swizzle] = expression;} (Bliss snaps with {@code vPos.xyz = floor(...)}). */
+    private static final Pattern ASSIGNMENT = Pattern.compile(
+        "(?<![\\w.])(?:(vec[34])\\s+)?([A-Za-z_]\\w*)(?:\\.([xyzw]{1,4}|[rgba]{1,4}))?\\s*=(?!=)\\s*([^;]+);");
     private static final Pattern GRID = Pattern.compile("\\b(floor|ceil|round|roundEven|trunc)\\s*\\(");
     private static final Pattern MATRIX = Pattern.compile("\\b\\w*(?:[Mm]atrix|[Pp]rojection|[Mm]odel[Vv]iew)\\w*\\b|\\btransform\\s*\\(");
     private static final Pattern VERTEX_POSITION_CALL = Pattern.compile("\\bgetVertexPosition\\s*\\(");
@@ -77,11 +79,21 @@ public final class IrisLayerShader {
         while (statements.find()) {
             String type = statements.group(1);
             String variable = statements.group(2);
-            String expression = statements.group(3);
+            String swizzle = statements.group(3);
+            String expression = statements.group(4);
             if (type != null) types.put(variable, type);
 
-            String vector = types.get(variable);
-            if (positions.contains(variable) && vector != null) {
+            // The value being assigned: its GLSL type and which of its components is the height.
+            String vector;
+            int yIndex;
+            if (swizzle == null) {
+                vector = types.get(variable);
+                yIndex = 1;
+            } else {
+                vector = swizzle.length() == 1 ? "float" : "vec" + swizzle.length();
+                yIndex = Math.max(swizzle.indexOf('y'), swizzle.indexOf('g'));
+            }
+            if (positions.contains(variable) && vector != null && yIndex >= 0) {
                 Matcher calls = GRID.matcher(expression);
                 StringBuilder rewritten = new StringBuilder();
                 int cursor = 0;
@@ -91,10 +103,10 @@ public final class IrisLayerShader {
                     String argument = expression.substring(calls.end(), close);
                     if (referencesPosition(argument, positions) && !MATRIX.matcher(argument).find()
                             && !argument.contains("*") && !argument.contains("/") && !GRID.matcher(argument).find()) {
-                        helpers.add(calls.group(1) + ":" + vector);
+                        helpers.add(calls.group(1) + ":" + vector + ":" + yIndex);
                         fixes++;
                         rewritten.append(expression, cursor, calls.start())
-                            .append("lsl_").append(calls.group(1)).append(vector.substring(3))
+                            .append(helperName(calls.group(1), vector, yIndex))
                             .append('(').append(argument).append(')');
                     } else {
                         rewritten.append(expression, cursor, close + 1);
@@ -106,10 +118,10 @@ public final class IrisLayerShader {
 
             if (referencesPosition(expression, positions) && !MATRIX.matcher(expression).find()) {
                 positions.add(variable);
-            } else {
-                positions.remove(variable);
+            } else if (swizzle == null) {
+                positions.remove(variable); // a swizzled write leaves the other components as they were
             }
-            String replacement = statements.group().substring(0, statements.start(3) - statements.start()) + expression + ";";
+            String replacement = statements.group().substring(0, statements.start(4) - statements.start()) + expression + ";";
             statements.appendReplacement(output, Matcher.quoteReplacement(replacement));
         }
         statements.appendTail(output);
@@ -120,8 +132,20 @@ public final class IrisLayerShader {
             String[] parts = helper.split(":");
             String operation = parts[0];
             String vector = parts[1];
-            String offset = vector.equals("vec3") ? "vec3(0.0,fraction,0.0)" : "vec4(0.0,fraction,0.0,0.0)";
-            functions.append(vector).append(" lsl_").append(operation).append(vector.substring(3))
+            int yIndex = Integer.parseInt(parts[2]);
+            String offset;
+            if (vector.equals("float")) {
+                offset = "fraction";
+            } else {
+                int size = vector.charAt(3) - '0';
+                StringBuilder components = new StringBuilder(vector).append('(');
+                for (int c = 0; c < size; c++) {
+                    if (c > 0) components.append(',');
+                    components.append(c == yIndex ? "fraction" : "0.0");
+                }
+                offset = components.append(')').toString();
+            }
+            functions.append(vector).append(' ').append(helperName(operation, vector, yIndex))
                 .append('(').append(vector).append(" value) {\n")
                 .append(" float fraction=float((vPosition.y >> 13u) & 7u) * 0.125;\n ")
                 .append(vector).append(" offset=").append(offset).append(";\n")
@@ -129,6 +153,12 @@ public final class IrisLayerShader {
         }
         Lsl.LOGGER.info("[LSL/DH] kept fractional layer heights through {} shader position rounding(s)", fixes);
         return source.substring(0, main.start()) + functions + source.substring(main.start(), begin) + output + source.substring(end);
+    }
+
+    /** e.g. lsl_floor3 (y is component 1, the usual case), lsl_floor2_0 for a {@code .yz} write. */
+    private static String helperName(String operation, String vector, int yIndex) {
+        String size = vector.equals("float") ? "1" : vector.substring(3);
+        return "lsl_" + operation + size + (yIndex == 1 ? "" : "_" + yIndex);
     }
 
     private static boolean referencesPosition(String expression, Set<String> positions) {
