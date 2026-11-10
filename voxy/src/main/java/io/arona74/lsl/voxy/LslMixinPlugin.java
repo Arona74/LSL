@@ -26,6 +26,7 @@ public final class LslMixinPlugin implements IMixinConfigPlugin {
         if (mixinClassName.endsWith(".ModelStoreMixin")) return LslConfig.voxyFullMipmaps;
         // Always applied: ext blades, plant shading and brightness are read at bake time and have a no-op value.
         if (mixinClassName.endsWith(".ShaderLoadingParserMixin")) return LslConfig.voxyPlantOffset || LslConfig.voxyFlatLayers;
+        if (mixinClassName.endsWith(".SodiumShadowMixin")) return LslConfig.voxyShadows;
         if (mixinClassName.endsWith(".RenderDataFactoryMixin")) return LslConfig.voxyPlantOffset || LslConfig.voxyTallPlants;
         return true;
     }

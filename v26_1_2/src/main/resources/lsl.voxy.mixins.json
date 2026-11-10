@@ -16,7 +16,12 @@
     "voxy.ModelTintMixin",
     "voxy.SoftwareModelTextureBakeryMixin",
     "voxy.RenderDataFactoryMixin",
-    "voxy.ShaderLoadingParserMixin"
+    "voxy.ShaderLoadingParserMixin",
+    "voxy.MdicRendererAccessor",
+    "voxy.RenderPipelineAccessor",
+    "voxy.SectionRendererAccessor",
+    "voxy.VoxyRenderSystemAccessor",
+    "voxy.SodiumShadowMixin"
   ],
   "injectors": {
     "defaultRequire": 1

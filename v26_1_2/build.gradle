@@ -15,6 +15,9 @@ dependencies {
     // Voxy is compile-only and never shipped (its licence forbids redistribution).
     // Drop the matching jar into libs/ (see README).
     compileOnly files(rootProject.file("libs/voxy-${voxy_version}-${minecraft_version}.jar"))
+    // Sodium (Polyform Shield) is compile-only, never shipped: the experimental Voxy shadow pass hooks its
+    // chunk renderer. Drop the jar from your instance into libs/ (see README).
+    compileOnly files(rootProject.file("libs/sodium-fabric-${sodium_version}+mc${minecraft_version}.jar"))
 }
 
 tasks.withType(JavaCompile).configureEach {

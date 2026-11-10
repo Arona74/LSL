@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import io.arona74.lsl.voxy.CtmAverage;
 import io.arona74.lsl.voxy.CtmBake;
 import io.arona74.lsl.voxy.ExtBlades;
+import io.arona74.lsl.voxy.LeafLook;
 import io.arona74.lsl.voxy.PlantLook;
 import io.arona74.lsl.voxy.QuadSplit;
 import io.arona74.lsl.voxy.TallPlants;
@@ -53,6 +54,7 @@ public abstract class SoftwareModelTextureBakeryMixin {
             SoftwareModelTextureBakery self = (SoftwareModelTextureBakery) (Object) this;
             CtmAverage.average((s, out) -> self.renderToOutput(s, out), state, outputBuffer, average);
         }
+        LeafLook.apply(state, outputBuffer);
         int flags = cir.getReturnValue();
         int adjusted = PlantLook.applyLayer(state, PlantLook.apply(state, outputBuffer, flags));
         if (adjusted != flags) cir.setReturnValue(adjusted);

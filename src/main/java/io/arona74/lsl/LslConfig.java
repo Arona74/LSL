@@ -53,6 +53,9 @@ public final class LslConfig {
     /** How a full block with a repeating (position-dependent) CTM texture is baked into Voxy. */
     public enum CtmRepeat { AVERAGE, BASE }
 
+    /** How the shader pack places things in its shadow map (voxy_shadows): its own shadow vertex shader's transform. */
+    public enum ShadowProjection { AUTO, PLAIN, BLISS }
+
     private static final String CONFIG_FILE = "lsl.json";
     private static final String LANG_FILE = "assets/lsl/lang/en_us.json";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -86,6 +89,10 @@ public final class LslConfig {
     public static double voxyPlantFaceInset;
     public static double voxyPlantBrightness;
     public static double voxyPlantSaturation;
+    public static double voxyLeafDepthShading;
+    public static double voxyLeafBrightness;
+    public static boolean voxyShadows;
+    public static ShadowProjection voxyShadowProjection;
 
     private static Path configDir;
     private static boolean loaded;
@@ -177,6 +184,17 @@ public final class LslConfig {
                 .in(ConfigTab.VOXY, "plants").requires(O_VOXY_PLANT_SHADING).mods(VOXY).apply(Apply.REJOIN).advanced());
         add(decimal("voxy_plant_saturation", 1.0, 0.0, 1.5, 0.05, () -> voxyPlantSaturation, v -> voxyPlantSaturation = v)
                 .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN));
+        add(decimal("voxy_leaf_depth_shading", 1.0, 0.0, 1.0, 0.05, () -> voxyLeafDepthShading, v -> voxyLeafDepthShading = v)
+                .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN));
+        add(decimal("voxy_leaf_brightness", 1.3, 0.3, 1.5, 0.05, () -> voxyLeafBrightness, v -> voxyLeafBrightness = v)
+                .in(ConfigTab.VOXY, "plants").mods(VOXY).apply(Apply.REJOIN));
+    }
+    private static final ConfigOption<Boolean> O_VOXY_SHADOWS = add(bool("voxy_shadows", false,
+            () -> voxyShadows, v -> voxyShadows = v)
+            .in(ConfigTab.VOXY, "lod").mods(VOXY).apply(Apply.RESTART).advanced());
+    static {
+        add(choice("voxy_shadow_projection", ShadowProjection.AUTO, () -> voxyShadowProjection, v -> voxyShadowProjection = v)
+                .in(ConfigTab.VOXY, "lod").requires(O_VOXY_SHADOWS).mods(VOXY).apply(Apply.LIVE).advanced());
     }
 
     static {

@@ -159,6 +159,28 @@ lists every option's state; `Voxy hooks are off` means a version mismatch.
   `voxy_plant_shading` (Voxy's side shading on plants, off by default; skipped under shaderpacks
   unless `voxy_plant_shading_with_shaders`), `voxy_plant_brightness` (with shading only) and
   `voxy_plant_saturation` (texture and tint).
+- **Leaf depth shading** (`voxy_leaf_depth_shading`, `LeafLook`). Up close, smooth lighting and
+  shaderpack shadows darken the leaves inside a canopy; Voxy's six evenly lit pictures showed only
+  fully lit outer leaves, so distant trees looked pale and flat. Each baked pixel keeps the depth the
+  bake hit it at; leaf pixels (`BlockTags.LEAVES`, CR's dense stand-in included) are darkened by
+  their depth beyond the face's nearest pixel, spread over the face's own depth range (at least a
+  quarter block), so the deepest visible leaves get the full strength. `voxy_leaf_brightness` then
+  scales every leaf pixel, outer leaves included.
+- **LOD shadows** (`voxy_shadows`, experimental, off by default, 26.1.2 Fabric only; `VoxyShadows`,
+  `SodiumShadowMixin`). Voxy never draws during Iris's shadow pass (`VoxyRenderSystem.getViewport()`
+  returns null then) and its shader-pack interface has no shadow program, so LODs receive shadows but
+  cast none. At the start of Sodium's cut-out pass while Iris draws the shadow map, LSL runs Voxy's
+  traversal and `buildDrawCalls` for its own view built from the shadow camera (empty depth
+  pyramid: no occlusion), then draws the list into the bound shadow framebuffer with a depth-only
+  shader: Voxy's `quads3.vert` (LSL's vertex patches apply) and a fragment shader that keeps
+  cut-outs and drops everything inside the vanilla render distance. All GL bindings touched are
+  saved and restored (`GlSnapshot`); a failure turns the pass off for the session. The LODs must
+  be placed the way the pack's own shadow vertex shader places things (`voxy_shadow_projection`):
+  Bliss distorts the map (`BiasShadowProjection`, its `d0` from the shadow distance, read off the
+  orthographic projection) and squeezes depth by 6 (folded into the view's projection, so the
+  traversal culls with the deeper box too); AUTO picks Bliss by the pack name in `iris.properties`.
+  Limits: only as far as the pack's shadow distance; Voxy picks a section's faces from the
+  player's position, not the sun's; Bliss's world curvature is not applied. Builds against Sodium 0.9.1 (`libs/sodium-fabric-0.9.1+mc26.1.2.jar`, compile-only).
 
 ### Colours and textures
 
@@ -247,6 +269,10 @@ those options are read at bake time. "Restart" options decide which mixins or sh
 | `voxy_plant_shading_with_shaders` | `false` | rejoin |
 | `voxy_plant_brightness` (advanced) | `1.0` (0.3 to 2.0) | rejoin |
 | `voxy_plant_saturation` | `1.0` (0 to 1.5) | rejoin |
+| `voxy_leaf_depth_shading` | `1.0` (0 to 1) | rejoin |
+| `voxy_leaf_brightness` | `1.3` (0.3 to 1.5) | rejoin |
+| `voxy_shadows` (advanced, experimental) | `false` | restart |
+| `voxy_shadow_projection` (advanced) | `AUTO` (AUTO, PLAIN, BLISS) | live |
 
 On the first start, the `dh_*` values are copied from AronaLayers-gen's
 `config/aronalayersgen/layer_config.json` when it exists. Adding an option means one `add(...)` in
@@ -273,9 +299,12 @@ goes in `assets/lsl/textures/gui/config/<key>.png` (none ship yet).
    `libs/distanthorizons-3.3.3-compile.jar` (DH api + core classes, LGPL) is committed, as it was in gen.
    For NeoForge, `libs/voxy-0.2.16-beta-roxy-1.21.1.jar` is the Voxy 0.2.16 jar run through Roxy's own
    patcher: see `scripts/RoxyPatch.java`. Regenerate it whenever Roxy or Voxy changes.
+   The 26.1.2 module also needs `sodium-fabric-0.9.1+mc26.1.2.jar` (from the same `mods/`) in `libs/`
+   for the Voxy shadow pass; Sodium's licence (Polyform Shield) keeps `libs/sodium-*.jar` git-ignored too.
 2. Run `gradlew build` (all versions) or `gradlew :v1_21_1:build`. Output:
    `v<mc>/build/libs/lsl-<version>+mc<mc>.jar`, and
-   `neoforge_1_21_1/build/libs/lsl-<version>+mc1.21.1-neoforge.jar`. The NeoForge module's first build
+   `neoforge_1_21_1/build/libs/lsl-<version>+mc1.21.1-neoforge.jar`, each also copied to the root
+   `build/libs/` (older versions removed there). The NeoForge module's first build
    needs the network (ModDevGradle downloads NeoForge's dev files); `--offline` works after that.
 
 The repo lives under OneDrive. Check the jar's timestamp before testing (see AronaLayers-gen notes).
