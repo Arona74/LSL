@@ -4,6 +4,7 @@ import com.seibel.distanthorizons.api.DhApi;
 import com.seibel.distanthorizons.api.interfaces.block.IDhApiBlockStateWrapper;
 import com.seibel.distanthorizons.api.interfaces.world.IDhApiLevelWrapper;
 import com.seibel.distanthorizons.api.methods.events.DhApiEventRegister;
+import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiBlockColorOverrideEvent;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiBlockStateWrapperCreatedEvent;
 import com.seibel.distanthorizons.api.methods.events.abstractEvents.DhApiChunkProcessingEvent;
 import com.seibel.distanthorizons.api.methods.events.sharedParameterObjects.DhApiEventParam;
@@ -47,19 +48,22 @@ public final class DistantHorizonsCompat {
     private static final Map<IDhApiLevelWrapper, Map<BlockState, IDhApiBlockStateWrapper>> WRAPPERS = new ConcurrentHashMap<>();
 
     public static void register() {
-        if (DhExactFlags.active) {
+        boolean exact = DhExactFlags.active;
+        boolean tints = registerNeutralTints();
+        if (exact || tints) {
             report(DhApiEventRegister.on(DhApiBlockStateWrapperCreatedEvent.class, new DhApiBlockStateWrapperCreatedEvent() {
                 @Override
                 public void blockStateWrapperCreated(DhApiEventParam<EventParam> event) {
                     DhStats.WRAPPERS.count();
-                    if (event.value.getBlockStateWrapper().getWrappedMcObject() instanceof BlockState state
-                            && DhLayers.partialEighths(state) > 0 && !DhLayers.isWaterlogged(state)) {
+                    if (!(event.value.getBlockStateWrapper().getWrappedMcObject() instanceof BlockState state)) return;
+                    if (exact && DhLayers.partialEighths(state) > 0 && !DhLayers.isWaterlogged(state)) {
                         event.value.setOpacity(PARTIAL_LAYER_OPACITY);
                     }
+                    if (tints && !state.isAir()) event.value.setAllowApiColorOverride(true);
                 }
-            }), "exact layer heights");
-            return;
+            }), exact ? "exact layer heights" : "block wrappers");
         }
+        if (exact) return;
         report(DhApiEventRegister.on(DhApiChunkProcessingEvent.class, new DhApiChunkProcessingEvent() {
             @Override
             public void blockOrBiomeChangedDuringChunkProcessing(DhApiEventParam<EventParam> event) {
@@ -68,6 +72,48 @@ public final class DistantHorizonsCompat {
         }), "layer rounding");
         // The stand-ins depend on dh_layer_rounding_threshold, which the config screen can change.
         LslConfig.onChange(STAND_IN::clear);
+    }
+
+    /**
+     * dh_neutral_tints: DH colours a tinted block as (average of its texture) x tint. A tinted
+     * texture is meant to be grey, the tint giving the colour; Conquest Reforged's plant textures
+     * are coloured fallbacks for the near-grey connected textures it really draws, so DH coloured
+     * them twice and distant meadows came out far greener than up close. Here the texture's average
+     * is turned grey, brightness kept, before the tint is applied again. Blocks DH could not tint,
+     * and grey textures (vanilla grass and leaves), come out as they were.
+     *
+     * @return whether the colour event is registered (DH API 7.1+, option on)
+     */
+    private static boolean registerNeutralTints() {
+        if (!LslConfig.dhNeutralTints) return false;
+        try {
+            DhApiBlockColorOverrideEvent.EventParam.class.getMethod("getTintColorAsInt");
+            DhApiBlockColorOverrideEvent.EventParam.class.getMethod("getBaseColorAsInt");
+        } catch (NoSuchMethodException | LinkageError e) {
+            Lsl.LOGGER.info("[LSL/DH] this Distant Horizons cannot override block colours: dh_neutral_tints skipped");
+            return false;
+        }
+        try {
+            DhApiResult<Void> result = DhApiEventRegister.on(DhApiBlockColorOverrideEvent.class, new DhApiBlockColorOverrideEvent() {
+                @Override
+                public void onBlockColorOverridden(DhApiEventParam<EventParam> event) {
+                    EventParam colour = event.value;
+                    int tint = colour.getTintColorAsInt();
+                    if (tint == -1) return; // not tinted
+                    int base = colour.getBaseColorAsInt();
+                    int grey = DhColors.grey(base);
+                    if (grey == base) return;
+                    int tinted = DhColors.multiply(grey, tint);
+                    colour.setColor(colour.getAlpha(), tinted >> 16 & 0xFF, tinted >> 8 & 0xFF, tinted & 0xFF);
+                }
+            });
+            report(result, "neutral tinted textures");
+            return result.success;
+        } catch (LinkageError e) {
+            // A DH whose API predates the base and tint colours (7.1).
+            Lsl.LOGGER.info("[LSL/DH] this Distant Horizons cannot override block colours: dh_neutral_tints skipped");
+            return false;
+        }
     }
 
     private static void report(DhApiResult<Void> result, String what) {

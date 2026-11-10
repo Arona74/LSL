@@ -21,7 +21,7 @@ Conquest Reforged):
 
 *A Conquest Reforged valley in Distant Horizons' LODs. Without LSL (left), every layer is a full
 block, so the meadows climb in sharp whole-block steps. With LSL (right), the layers sit at their real
-height and the slopes are smooth.*
+height, the slopes are smooth, and the grass keeps Conquest's colours.*
 
 ![A Conquest Reforged valley in Voxy's LODs, without LSL (left) and with LSL (right)](images/voxy_conquest.jpg)
 
@@ -61,6 +61,12 @@ stands a block too high wherever a layer lies.
 - **Rounding** (`dh_layer_rounding`, any recent DH, public API only): a layer of
   `dh_layer_rounding_threshold` eighths or more shows as its full block, a thinner one as nothing
   (water when waterlogged).
+- **Colours** (`dh_neutral_tints`, DH API 7.1+, public API only): DH colours a tinted block as its
+  texture's average times the biome tint. Conquest Reforged's plant textures are coloured fallbacks
+  for the near-grey connected textures it draws up close, so DH coloured them twice and distant
+  meadows came out far greener than up close (as Voxy's did before `voxy_ctm`). Through DH's
+  `DhApiBlockColorOverrideEvent`, the texture's average is turned grey (same brightness) before
+  the tint. Grey textures, vanilla's included, are unchanged.
 
 Switching `dh_exact_layers` or `dh_layer_rounding` changes what DH saves, so existing LODs keep their
 old look until DH's LOD data is cleared (or in a new world). `dh_exact_layers_color_bits` doesn't.
@@ -222,6 +228,7 @@ those options are read at bake time. "Restart" options decide which mixins or sh
 | `dh_exact_layers_color_bits` (advanced) | `true` | restart |
 | `dh_layer_rounding` | `true` | new DH LODs |
 | `dh_layer_rounding_threshold` | `4` (1-8) | new DH LODs |
+| `dh_neutral_tints` | `true` | restart |
 | `voxy_layer_mip` | `true` | restart; new Voxy LODs |
 | `voxy_shape_culling` | `true` | restart |
 | `voxy_hide_ext_blades` | `true` | rejoin |

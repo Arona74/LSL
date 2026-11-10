@@ -65,6 +65,7 @@ public final class LslConfig {
     public static boolean dhExactLayers;
     public static boolean dhExactLayersColorBits;
     public static boolean dhLayerSides;
+    public static boolean dhNeutralTints;
     public static boolean dhLayerRounding;
     public static int dhLayerRoundingThreshold;
     public static boolean voxyLayerMip;
@@ -121,6 +122,12 @@ public final class LslConfig {
         add(integer("dh_layer_rounding_threshold", 4, 1, 8, () -> dhLayerRoundingThreshold, v -> dhLayerRoundingThreshold = v)
                 .in(ConfigTab.DISTANT_HORIZONS, "rounding").requires(O_DH_LAYER_ROUNDING).mods(DH)
                 .side(Side.BOTH).apply(Apply.DH_LODS));
+    }
+
+    // --- Distant Horizons: colours ---
+    static {
+        add(bool("dh_neutral_tints", true, () -> dhNeutralTints, v -> dhNeutralTints = v)
+                .in(ConfigTab.DISTANT_HORIZONS, "dh_colours").mods(DH).side(Side.CLIENT).apply(Apply.RESTART));
     }
 
     // --- Voxy ---
