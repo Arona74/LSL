@@ -17,6 +17,12 @@ Conquest Reforged):
   `4643445e`), and NeoForge 1.21.1 with Voxy `0.2.16-beta` (the 1.21.11 build, commit `59b62bee`)
   through [Roxy](https://github.com/RasaNovum/Roxy) `0.4.1` (see below).
 
+![A Conquest Reforged valley in Distant Horizons' LODs, without LSL (left) and with LSL (right)](images/dh_conquest.jpg)
+
+*A Conquest Reforged valley in Distant Horizons' LODs. Without LSL (left), every layer is a full
+block, so the meadows climb in sharp whole-block steps. With LSL (right), the layers sit at their real
+height and the slopes are smooth.*
+
 ![A Conquest Reforged valley in Voxy's LODs, without LSL (left) and with LSL (right)](images/voxy_conquest.jpg)
 
 *A Conquest Reforged valley in Voxy's LODs. Without LSL (left), the layered ground rounds up into
