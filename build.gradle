@@ -1,2 +1,24 @@
 // Root project: holds shared sources (src/main/java) pulled in by every version module.
 // Nothing is built here.
+
+// Every module's jar is also copied to build/libs here after it builds, so all the versions sit in
+// one folder. Jars of an older mod_version are removed from that folder first.
+subprojects {
+    def version = rootProject.mod_version
+    def rootLibs = rootProject.layout.buildDirectory.dir('libs').get().asFile
+    def collect = tasks.register('collectJar', Copy) {
+        description = "Copies this module's jar to the root build/libs."
+        dependsOn tasks.matching { it.name == 'assemble' }
+        from(layout.buildDirectory.dir('libs')) {
+            include "lsl-${version}+*.jar"
+            exclude '*-sources.jar', '*-dev.jar'
+        }
+        into rootLibs
+        doFirst {
+            rootLibs.listFiles()?.findAll {
+                it.name.startsWith('lsl-') && it.name.endsWith('.jar') && !it.name.startsWith("lsl-${version}+")
+            }*.delete()
+        }
+    }
+    tasks.matching { it.name == 'assemble' }.configureEach { finalizedBy collect }
+}
