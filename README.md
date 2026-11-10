@@ -13,6 +13,12 @@ Conquest Reforged):
   `4643445e`), and NeoForge 1.21.1 with Voxy `0.2.16-beta` (the 1.21.11 build, commit `59b62bee`)
   through [Roxy](https://github.com/RasaNovum/Roxy) `0.4.1` (see below).
 
+![A Conquest Reforged valley in Voxy's LODs, without LSL (left) and with LSL (right)](images/voxy_conquest.jpg)
+
+*A Conquest Reforged valley in Voxy's LODs. Without LSL (left), the layered ground rounds up into
+whole-block steps. With LSL (right), the meadows keep their layer heights, and the grass and trees
+keep Conquest's colours.*
+
 Each part stays idle when its LOD mod is absent. Runs on both sides: DH also builds LODs on servers.
 
 ## Layers: who decides
